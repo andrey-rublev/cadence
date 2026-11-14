@@ -12,6 +12,7 @@ dist/
 
 # Local databases and secrets
 *.db
+!/backend/cadence.db
 *.db-journal
 *.db-wal
 *.db-shm
@@ -21,7 +22,7 @@ dist/
 .env.*
 !.env.example
 
-# Data: only labelled synthetic fixtures are committed
+# External data and volunteer exports
 data/external/
 data/volunteer/
 
