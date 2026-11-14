@@ -11,11 +11,11 @@ type Stage = 'loading' | 'intro' | 'session' | 'stopped'
 
 const RECORDED = [
   'Where your pointer is and when you click, inside the dig site',
-  'Whether you said you are using a mouse or a trackpad',
+  'The username you choose, and whether you use a mouse or a trackpad',
 ]
 const NOT_RECORDED = [
-  'Your name, email or anything that identifies you',
-  'Anything you type, or anything outside this page',
+  'Your real name, email or contact details',
+  'Anything else you type, or anything outside this page',
 ]
 
 function Intro({ onStarted }: { onStarted: (status: CollectStatus) => void }) {
@@ -30,8 +30,8 @@ function Intro({ onStarted }: { onStarted: (status: CollectStatus) => void }) {
           <p className="max-w-prose text-lg text-muted-foreground">
             We're testing whether a short pointing task can tell an account's owner from someone else
             at the same keyboard. That takes real people. The task is a small digging game: one
-            practice round and six 20-second rounds, about three minutes in all. A second session after a 10-minute break
-            makes your data count twice.
+            practice round and six 20-second rounds, about three minutes in all. A second session,
+            ideally after a break, makes your data count twice.
           </p>
         </div>
 
@@ -59,9 +59,9 @@ function Intro({ onStarted }: { onStarted: (status: CollectStatus) => void }) {
         </div>
 
         <p className="max-w-prose text-sm text-muted-foreground">
-          You get a random code instead of a name. Recordings are used only to train and test this
-          hackathon project and are deleted within 30 days. To have yours deleted sooner, give your
-          code to anyone on the team.
+          You pick a username, so your recordings are not tied to your name. They are used only to
+          train and test this hackathon project and are deleted within 30 days. To have yours
+          deleted sooner, tell anyone on the team your username.
         </p>
       </div>
 
@@ -74,15 +74,20 @@ function Complete({ status, onExit }: { status: CollectStatus; onExit: () => voi
   const first = status.label === 'A'
   return (
     <div className="mx-auto grid max-w-xl justify-items-start gap-6 py-10">
-      <p className="font-mono text-sm text-muted-foreground">Session {status.label} recorded</p>
-      <h1 className="text-5xl font-extrabold">{first ? 'Keep this code.' : 'That is everything. Thank you.'}</h1>
-      <p className="rounded-lg border border-rule bg-card px-6 py-4 font-mono text-4xl tracking-widest">
-        {status.participant_code}
+      <p className="font-mono text-sm text-muted-foreground">
+        {status.username} · session {status.label} recorded
       </p>
+      <h1 className="text-5xl font-extrabold">{first ? 'One session down.' : 'That is everything. Thank you.'}</h1>
       <p className="text-lg text-muted-foreground">
-        {first
-          ? 'Come back in 10 minutes or more for a second three-minute session and enter this code. Two sessions let us compare you with yourself, which is the whole test.'
-          : 'If you can spare three more minutes on a different laptop or a different mouse, a session there with the same code helps us test device changes.'}
+        {first ? (
+          <>
+            A second three-minute session lets us compare you with yourself, which is the whole test.
+            Come back whenever suits you, choose "Yes" on the first screen and enter{' '}
+            <span className="font-mono text-foreground">{status.username}</span> again.
+          </>
+        ) : (
+          'If you can spare three more minutes on a different laptop or a different mouse, a session there under the same username helps us test device changes.'
+        )}
       </p>
       <Button size="lg" onClick={onExit} className="h-12 px-6 text-base">
         Finish and hand back the laptop
@@ -96,7 +101,7 @@ function Stopped({ onRestart }: { onRestart: () => void }) {
     <div className="mx-auto grid max-w-xl justify-items-start gap-6 py-10">
       <h1 className="text-5xl font-extrabold">Stopped. Nothing more is needed.</h1>
       <p className="text-lg text-muted-foreground">
-        Rounds you already finished stay recorded under your code. If you would like them deleted,
+        Rounds you already finished stay recorded under your username. If you would like them deleted,
         or the task did not work with how you use a computer, tell anyone on the team.
       </p>
       <Button size="lg" variant="outline" onClick={onRestart} className="h-12 px-6 text-base">

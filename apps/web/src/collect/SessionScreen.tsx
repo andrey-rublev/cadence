@@ -107,7 +107,7 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div>
           <p className="font-mono text-sm text-muted-foreground">
-            {status.participant_code} · session {status.label}
+            {status.username} · session {status.label}
           </p>
           <h1 className="text-3xl font-bold sm:text-4xl">{roundName}</h1>
         </div>

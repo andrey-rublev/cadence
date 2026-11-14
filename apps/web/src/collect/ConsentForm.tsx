@@ -1,3 +1,4 @@
+import { CadenceApiError } from '@cadence/sdk'
 import { useState, type FormEvent } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -27,23 +28,27 @@ function Choice({ value, label }: { value: string; label: string }) {
 
 export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) => void }) {
   const [returning, setReturning] = useState('no')
-  const [code, setCode] = useState('')
+  const [username, setUsername] = useState('')
   const [device, setDevice] = useState('mouse')
   const [station, setStation] = useState(() => localStorage.getItem(STATION_KEY) ?? '')
   const [pilot, setPilot] = useState(false)
   const [consent, setConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** The typed username has no sessions on this laptop; offer to continue anyway. */
+  const [unknown, setUnknown] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  async function start(event: FormEvent) {
-    event.preventDefault()
+  async function start(earlierSessionElsewhere: boolean) {
     setBusy(true)
     setError(null)
+    setUnknown(false)
     try {
       localStorage.setItem(STATION_KEY, station.trim())
       const status = await api.request<CollectStatus>('POST', '/collect/start', {
         consent,
-        participant_code: returning === 'yes' ? code.trim() : null,
+        username,
+        returning: returning === 'yes',
+        earlier_session_elsewhere: earlierSessionElsewhere,
         declared_device: device,
         station: station.trim(),
         is_pilot: pilot,
@@ -51,35 +56,48 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
       onStarted(status)
     } catch (e) {
       setError(explain(e))
+      setUnknown(e instanceof CadenceApiError && e.code === 'unknown_username')
       setBusy(false)
     }
   }
 
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    start(false)
+  }
+
   return (
-    <form onSubmit={start} className="grid gap-6 rounded-xl border border-rule bg-card p-6 sm:p-8">
-      <fieldset className="grid gap-2.5">
+    <form onSubmit={submit} className="grid gap-6 rounded-xl border border-rule bg-card p-6 sm:p-8">
+      <fieldset>
         <legend className="mb-2.5 font-medium">Have you done a session before?</legend>
         <RadioGroup value={returning} onValueChange={(v) => setReturning(v as string)} className="grid grid-cols-2 gap-2.5">
           <Choice value="no" label="No, first time" />
-          <Choice value="yes" label="Yes, I have a code" />
+          <Choice value="yes" label="Yes" />
         </RadioGroup>
-        {returning === 'yes' && (
-          <div className="mt-1 grid gap-1.5">
-            <Label htmlFor="code">Your code</Label>
-            <Input
-              id="code"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="P-ABCDE"
-              autoComplete="off"
-              spellCheck={false}
-              required
-              maxLength={7}
-              className="h-11 font-mono text-lg tracking-widest uppercase"
-            />
-          </div>
-        )}
       </fieldset>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="username">{returning === 'yes' ? 'Your username' : 'Choose a username'}</Label>
+        <Input
+          id="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="molefan42"
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          required
+          minLength={3}
+          maxLength={24}
+          aria-describedby="username-hint"
+          className="h-11 font-mono text-lg"
+        />
+        <p id="username-hint" className="text-sm text-muted-foreground">
+          {returning === 'yes'
+            ? 'The same one you used last time, so your sessions are matched up.'
+            : '3 to 24 letters or numbers. Not your real name. You will type it again if you come back.'}
+        </p>
+      </div>
 
       <fieldset>
         <legend className="mb-2.5 font-medium">What are you pointing with right now?</legend>
@@ -123,7 +141,19 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
 
       {error && (
         <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {unknown && (
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => start(true)}
+                className="mt-1 h-auto p-0 text-left whitespace-normal text-destructive underline"
+              >
+                My earlier session was on a different laptop. Continue as {username.trim().toLowerCase()}.
+              </Button>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 

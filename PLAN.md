@@ -141,7 +141,7 @@ Plus per submission: `challenge_id`, `area {w,h,scale}`, `devicePixelRatio`, `de
 **Decision** returned by scoring: `CONSISTENT | UNCERTAIN | INCONSISTENT | INSUFFICIENT_EVIDENCE`, with `score`, both thresholds, `evidence {rounds, strokes, seconds}`, `model_version`. Never a probability.
 
 ### 4.2 Data model (SQLite)
-`accounts`, `sessions` (server-side, HttpOnly SameSite cookie, `trusted_at`), `consents`, `participants` (pseudonymous ID, split assigned by hash), `challenges` (id, session, purpose, seed, layout, issued/expires/used), `samples` (account or participant, session, task, captured_at, raw events if consented, source = volunteer|synthetic), `features`, `verifications` (score, decision, model version), `action_grants`, `model_registry`.
+`accounts`, `sessions` (server-side, HttpOnly SameSite cookie, `trusted_at`), `consents`, `participants` (self-chosen username, split assigned by hash), `challenges` (id, session, purpose, seed, layout, issued/expires/used), `samples` (account or participant, session, task, captured_at, raw events if consented, source = volunteer|synthetic), `features`, `verifications` (score, decision, model version), `action_grants`, `model_registry`.
 
 Identity predictors are never account IDs, device identifiers or filenames. Device fields are metadata for evaluation breakdowns only.
 
@@ -196,14 +196,15 @@ A failed check blocks only that action attempt. The fallback is always available
 ## 8. Data collection and evaluation
 
 **Volunteer protocol (collection mode, 20+ people).**
-- Consent screen, then a pseudonymous participant ID. No names stored.
-- Session A (about 3 min), a gap of ≥10 minutes, Session B (about 3 min). Separate session IDs.
+- Consent screen, then a username the volunteer chooses (asked not to be their real name). It is their only identifier; no names or contact details are stored.
+- Session A (about 3 min), then Session B (about 3 min). Separate session IDs. No minimum break is enforced (decided Sat evening so more volunteers finish two sessions); a break is encouraged on screen. Start and end times are stored, so the evaluation reports the actual gap between sessions and treats back-to-back pairs as a best case.
 - Shared collection laptops give *different people on the same device*.
 - At least 5 volunteers add a Session C on a second device (mouse vs trackpad) for *same person across devices*.
 - The two builders pilot first to catch capture bugs, and their data is excluded from evaluation.
 
 **Split discipline.**
-- Participants are assigned to train / validation / test (about 60 / 20 / 20) by a hash of the participant ID, fixed before any data is viewed.
+- Participants are assigned to train / validation / test (about 60 / 20 / 20) by a salted hash of the username, fixed before any data is viewed. With about 20 people the counts can come out lopsided; the export script may rebalance over the merged set by hash order (blocks of 3/1/1), which stays blind to the data.
+- Usernames are typed by hand, so the export script must report near-duplicate usernames (for example `molefan` and `molfan`) for a manual check before training. A typo that splits one person in two would count them as their own impostor.
 - Split by whole session before feature building or pair construction. Preprocessing fitted on train only. No overlapping windows across splits.
 - Test participants are never in verifier training: Session A enrolls, Session B is the genuine probe, other test participants are unfamiliar impostors.
 - Tighter estimate if time allows: participant-grouped cross-validation with thresholds chosen in an inner fold.
@@ -277,7 +278,7 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [ ] A — Capture SDK: passive in-app windows with start/stop control and consent gate (`createCadence`); needs the Gate 2 endpoint
 - [x] A — Three challenge tasks in one sheet: target click, drag and drop, tracking
 - [x] A — Dig-site theme for the tasks (dig spots, nugget into crate, follow the mole); cosmetic only, in `apps/web/src/challenge/DigArt.tsx`
-- [x] A — Collection mode: consent, pseudonymous code with checksum, sessions A/B/C, practice round + 6 rounds, 10-minute break rule
+- [x] A — Collection mode: consent, self-chosen username, sessions A/B/C, practice round + 6 rounds, no enforced break
 - [x] A — Browser check with real pointer events: a full session accepted by the server; desktop, tablet and mobile layouts reviewed
 - [x] B — Synthetic player (`backend/cadence/synthetic.py`), used by tests; labelled synthetic
 - [ ] B — Synthetic fixture files for the training pipeline (`scripts/make_synthetic.py`)
@@ -285,7 +286,8 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [ ] B — Baseline B0 and evaluation harness (FAR, FRR, EER, AUC, participant bootstrap)
 - [ ] B — SapiMouse import script
 - [ ] A+B — **Pilot: both builders run one collection session on each laptop with a real mouse and a trackpad; fix anything odd; then freeze spec v1**
-- [ ] A+B — Delete-by-code script for volunteer recordings (promised on the consent screen), and the 30-day purge
+- [ ] A+B — Delete-by-username script for volunteer recordings (promised on the consent screen), and the 30-day purge
+- [ ] B — Export script: merge laptops by username, flag near-duplicate usernames, report the gap between each person's sessions
 
 ### Gate 2 — Tier 1 end to end (target: Sun 4:30 AM)
 - [ ] A — Accounts, server-side sessions, sign-in
@@ -331,7 +333,7 @@ npm run dev
 
 Checks: `cd backend && uv run pytest` and `npm run typecheck`.
 
-**Collection stations.** Run the whole stack on each collection laptop and open `http://localhost:5173`. Use localhost, not a LAN address: browsers only expose high-rate pointer samples on secure origins. Set a distinct Station name per laptop and pointing device (for example `nikhil-mouse`, `nikhil-trackpad`). A code issued on one laptop works on any other, and lands in the same train/validation/test split everywhere. Recruiting progress: `http://localhost:5173/api/collect/overview`. Data lives in `backend/cadence.db` on each laptop; do not delete it, and copy it somewhere safe before code freeze.
+**Collection stations.** Run the whole stack on each collection laptop and open `http://localhost:5173`. Use localhost, not a LAN address: browsers only expose high-rate pointer samples on secure origins. Set a distinct Station name per laptop and pointing device (for example `nikhil-mouse`, `nikhil-trackpad`). A volunteer uses the same username on every laptop; it lands in the same train/validation/test split everywhere. On a laptop that has not seen the username, a returning volunteer gets a "check the spelling" message with a link to continue anyway. Recruiting progress: `http://localhost:5173/api/collect/overview`. Data lives in `backend/cadence.db` on each laptop; do not delete it, and copy it somewhere safe before code freeze.
 
 ### Where things are
 | Path | What |
@@ -362,6 +364,8 @@ Lane B starts from `samples` rows: `events_z` is zlib-compressed JSON of `[t_ms,
 | Sat 3:50 PM | Tracking ends on a timer, not the animation loop | Browsers pause animation frames in hidden tabs |
 | Sat 4:20 PM | Tasks reskinned as a dig site, artwork only | More fun for volunteers; geometry and rules unchanged, server still accepts the same rounds |
 | Sat 4:20 PM | Everyone commits and pushes to `origin/main` automatically after each working change | Two people and assistants working in parallel need the latest code and tracker |
+| Sat evening | Volunteers choose their own username; generated codes removed | Easier to remember than a code. Costs: typos and two people picking the same name, guarded by the first-time/returning check and a near-duplicate report at export; split balance is no longer guaranteed |
+| Sat evening | No minimum break between sessions | More volunteers finish two sessions. Cost: back-to-back sessions are less independent, so the gap is reported with the results |
 | pending | Challenge spec v1 frozen | After the pilot at Gate 1 |
 
 ## 13. Path to a real product (for the pitch and README)

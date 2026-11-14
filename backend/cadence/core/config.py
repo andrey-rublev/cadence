@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     challenge_rate_verify: int = 5
 
     collect_rounds: int = 6  # scored rounds per collection session, after one warm-up
-    collect_min_gap_s: int = 600  # minimum break between a participant's sessions
     split_salt: str = "cadence-split-v1"
 
     retention_days: int = 30

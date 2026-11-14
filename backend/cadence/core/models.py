@@ -13,13 +13,13 @@ def now() -> float:
 
 
 class Participant(Base):
-    """A consenting volunteer in collection mode. `code` is pseudonymous; no names are stored."""
+    """A consenting volunteer in collection mode, known only by a username they chose."""
 
     __tablename__ = "participants"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
-    # train | validation | test, fixed at creation from a salted hash of the code.
+    username: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    # train | validation | test | pilot, a pure function of the username (see collect.split_of).
     split: Mapped[str] = mapped_column(String(12))
     is_pilot: Mapped[bool] = mapped_column(default=False)
     consent_raw_at: Mapped[float]

@@ -3,7 +3,7 @@ import { CadenceApiError, createClient } from '@cadence/sdk'
 export const api = createClient('/api')
 
 export interface CollectStatus {
-  participant_code: string
+  username: string
   label: string
   warmup_done: boolean
   rounds_done: number
@@ -25,7 +25,9 @@ const ROUND_REJECTED: Record<string, string> = {
 
 const MESSAGES: Record<string, string> = {
   consent_required: 'Tick the consent box to take part.',
-  unknown_participant_code: 'That code is not valid. Check it against the one you were given, including the last character.',
+  invalid_username: 'Use 3 to 24 letters or numbers for the username. Dots, dashes and underscores are fine; spaces are not.',
+  username_taken: 'Sessions are already recorded under that username on this laptop. Pick a different one, or choose "Yes" above if it was you.',
+  unknown_username: 'No session has been recorded under that username on this laptop. Check the spelling.',
   no_active_session: 'This session has ended. Start again from the first screen.',
   session_complete: 'This session is already complete.',
   challenge_expired: 'That round ran past its two-minute limit, so it was not recorded. Start it again.',
@@ -37,11 +39,6 @@ const MESSAGES: Record<string, string> = {
 /** A plain-language explanation of a failed request, written for the person at the screen. */
 export function explain(error: unknown): string {
   if (error instanceof CadenceApiError) {
-    if (error.code === 'too_soon') {
-      const { retry_in_s } = error.detail as { retry_in_s: number }
-      const minutes = Math.ceil(retry_in_s / 60)
-      return `Sessions on the same device need a 10-minute break between them. Come back in ${minutes} minute${minutes === 1 ? '' : 's'}.`
-    }
     if (error.code === 'round_rejected') {
       const { reason } = error.detail as { reason: string }
       const known = ROUND_REJECTED[reason.split(':')[0]]

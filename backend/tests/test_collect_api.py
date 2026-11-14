@@ -3,14 +3,7 @@ from fastapi.testclient import TestClient
 from cadence.core.config import settings
 from cadence.main import app
 
-from .conftest import (
-    HEADERS,
-    backdate_challenge,
-    end_collect_sessions_long_ago,
-    play,
-    play_round,
-    start_collect,
-)
+from .conftest import HEADERS, backdate_challenge, play, play_round, start_collect
 
 META = {"scale": 1, "dpr": 1, "pointer_type": "mouse"}
 
@@ -21,7 +14,8 @@ def test_consent_is_required(client):
 
 def test_state_changing_routes_need_the_client_header():
     with TestClient(app) as bare:
-        r = bare.post("/api/collect/start", json={"consent": True, "declared_device": "mouse", "station": "x"})
+        body = {"consent": True, "username": "bare", "declared_device": "mouse", "station": "x"}
+        r = bare.post("/api/collect/start", json=body)
         assert r.status_code == 403
 
 
@@ -115,51 +109,77 @@ def test_challenge_issuing_is_rate_limited(client):
     assert codes[-1] == 429 and set(codes[:-1]) == {200}
 
 
-def test_second_session_needs_a_break_unless_the_device_changed(client):
-    code = start_collect(client).json()["participant_code"]
+def finish_session(client):
     for i in range(settings.collect_rounds + 1):
         play_round(client, seed=i)
 
-    with TestClient(app, headers=HEADERS) as later:
-        too_soon = start_collect(later, participant_code=code)
-        assert too_soon.status_code == 409 and too_soon.json()["detail"]["code"] == "too_soon"
 
-        other_device = start_collect(later, participant_code=code, declared_device="trackpad")
-        assert other_device.status_code == 200 and other_device.json()["label"] == "B"
-
-    end_collect_sessions_long_ago()
-    with TestClient(app, headers=HEADERS) as later:
-        assert start_collect(later, participant_code=code.lower()).json()["label"] == "B"
+def test_second_session_can_follow_straight_away(client):
+    assert start_collect(client, username="MoleFan ").json()["username"] == "molefan"
+    finish_session(client)
+    with TestClient(app, headers=HEADERS) as again:
+        second = start_collect(again, username="molefan", returning=True)
+        assert second.status_code == 200 and second.json()["label"] == "B"
 
 
-def test_mistyped_participant_code_is_rejected(client):
-    code = start_collect(client).json()["participant_code"]
-    wrong_last = "A" if code[-1] != "A" else "B"
-    assert start_collect(client, participant_code=code[:-1] + wrong_last).status_code == 404
-    assert start_collect(client, participant_code="P-ZZZZ").status_code == 404
+def test_usernames_must_be_simple(client):
+    for bad in ("ab", "has space", "x" * 25, "-leading", "emoji✨"):
+        r = start_collect(client, username=bad)
+        assert r.status_code == 400 and r.json()["detail"] == "invalid_username", bad
 
 
-def test_code_issued_on_another_laptop_keeps_its_split(client):
+def test_newcomer_cannot_join_someone_elses_recordings(client):
+    start_collect(client, username="digger")
+    finish_session(client)
+    with TestClient(app, headers=HEADERS) as newcomer:
+        r = start_collect(newcomer, username="Digger")
+        assert r.status_code == 409 and r.json()["detail"] == "username_taken"
+
+
+def test_abandoned_first_attempt_does_not_lock_the_username(client):
+    start_collect(client, username="digger")
+    with TestClient(app, headers=HEADERS) as retry:
+        assert start_collect(retry, username="digger").json()["label"] == "A"
+
+
+def test_returning_volunteer_with_a_typo_is_stopped(client):
+    r = start_collect(client, username="diger", returning=True)
+    assert r.status_code == 404 and r.json()["detail"] == "unknown_username"
+    # ...unless they say their earlier session was on a different laptop.
+    r = start_collect(client, username="diger", returning=True, earlier_session_elsewhere=True)
+    assert r.status_code == 200 and r.json()["label"] == "A"
+
+
+def test_split_depends_only_on_the_username_and_pilots_are_excluded(client):
     from cadence.collect import split_of
-    from cadence.core.db import Base, engine
 
-    code = start_collect(client).json()["participant_code"]
-    Base.metadata.drop_all(engine)  # a different laptop: same salt, empty database
-    Base.metadata.create_all(engine)
-    with TestClient(app, headers=HEADERS) as other_laptop:
-        assert start_collect(other_laptop, participant_code=code).json()["label"] == "A"
-    splits = client.get("/api/collect/overview").json()["participants_by_split"]
-    assert splits == {split_of(code): 1}
-
-
-def test_split_assignment_is_balanced_and_pilots_are_excluded(client):
-    for _ in range(10):
+    names = [f"volunteer{i}" for i in range(12)]
+    for name in names:
         with TestClient(app, headers=HEADERS) as c:
-            start_collect(c)
+            start_collect(c, username=name)
     with TestClient(app, headers=HEADERS) as c:
-        start_collect(c, is_pilot=True)
-    splits = client.get("/api/collect/overview").json()["participants_by_split"]
-    assert splits == {"train": 6, "validation": 2, "test": 2, "pilot": 1}
+        start_collect(c, username="teammate", is_pilot=True)
+
+    expected = {"pilot": 1}
+    for name in names:
+        expected[split_of(name)] = expected.get(split_of(name), 0) + 1
+    assert client.get("/api/collect/overview").json()["participants_by_split"] == expected
+    assert set(expected) <= {"train", "validation", "test", "pilot"}
+
+
+def test_database_from_the_code_era_is_migrated_in_place(tmp_path):
+    from sqlalchemy import create_engine
+
+    from cadence.core.db import migrate
+
+    old = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
+    with old.begin() as conn:
+        conn.exec_driver_sql("CREATE TABLE participants (id INTEGER PRIMARY KEY, code VARCHAR(16), split VARCHAR(12))")
+        conn.exec_driver_sql("INSERT INTO participants (code, split) VALUES ('P-E3BPJ', 'pilot')")
+    migrate(old)
+    migrate(old)  # safe to run on every start
+    with old.begin() as conn:
+        assert conn.exec_driver_sql("SELECT username, split FROM participants").all() == [("p-e3bpj", "pilot")]
 
 
 def test_status_is_null_without_a_session_and_live_with_one(client):

@@ -30,14 +30,17 @@ class ChallengeOut(BaseModel):
 
 class CollectStart(BaseModel):
     consent: bool
-    participant_code: str | None = Field(default=None, max_length=16)
+    username: str = Field(max_length=64)
+    returning: bool = False
+    # A returning volunteer whose earlier session was recorded on a different laptop.
+    earlier_session_elsewhere: bool = False
     declared_device: DeclaredDevice
     station: str = Field(min_length=1, max_length=40)
     is_pilot: bool = False
 
 
 class CollectStatus(BaseModel):
-    participant_code: str
+    username: str
     label: str
     warmup_done: bool
     rounds_done: int
