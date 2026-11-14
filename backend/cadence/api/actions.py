@@ -58,6 +58,13 @@ def export(body: ExportBody, account: CurrentAccount, session: CurrentSession, d
     return {"fictional": True, "basis": grant.basis, "customers": CUSTOMERS}
 
 
+@router.get("/model")
+def model_summary(account: CurrentAccount) -> dict | None:
+    """What the active model was trained and tested on, exactly as the training script wrote it."""
+    model = active_model()
+    return None if model is None else model.summary
+
+
 @router.get("/verifications")
 def verifications(account: CurrentAccount, db: Db) -> dict:
     """Recent verification attempts for this account, newest first. Real outcomes only."""

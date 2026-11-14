@@ -46,6 +46,8 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
 
   useEffect(() => {
     if (!layout || !surface.current) return
+    // The whole sheet must be visible before the first target appears.
+    surface.current.scrollIntoView({ block: 'center' })
     let tunnelEnd: { x: number; y: number } | null = null
     let tunnelPoints = ''
 

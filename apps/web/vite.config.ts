@@ -13,6 +13,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     // Same-origin API in development, so the session cookie needs no CORS setup.
-    proxy: { '/api': 'http://127.0.0.1:8000' },
+    // CADENCE_API points a second dev stack at its own backend (see PLAN.md, How to run).
+    proxy: { '/api': process.env.CADENCE_API ?? 'http://127.0.0.1:8000' },
   },
 })

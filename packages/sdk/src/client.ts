@@ -27,14 +27,14 @@ export class CadenceApiError extends Error {
 }
 
 export interface CadenceClient {
-  request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T>
+  request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T>
   issueChallenge(): Promise<IssuedChallenge>
   submitChallenge<T>(id: string, result: ChallengeResult): Promise<T>
 }
 
 /** Same-origin API client. Sends the session cookie and the header the server requires on writes. */
 export function createClient(endpoint = '/api'): CadenceClient {
-  async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  async function request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
     const response = await fetch(endpoint + path, {
       method,
       credentials: 'same-origin',

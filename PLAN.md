@@ -292,23 +292,25 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 
 ### Gate 2 — Tier 1 end to end (target: Sun 4:30 AM)
 - [x] A — **Backend for the whole Gate 2 loop** (36 tests): accounts and sign-in (`api/auth.py`), consent and profile deletion, simulated fallback, enrollment gated on consent + trusted verification, feature extraction (`features/extract.py`, 42 features), baseline verifier B0 and thresholds (`verifier/`), policy (`policy.py`), action grants and the protected export (`api/actions.py`), rate limits, and `scripts/train.py`. Web screens for these are next
-- [ ] A — Accounts, server-side sessions, sign-in (web screens)
-- [ ] A — Consent, retention setting, delete-my-profile
-- [ ] A — Enrollment flow with progress (≥2 sessions, ≥6 scored rounds)
-- [ ] A — Simulated fallback behind `TrustedVerifier`, labelled demo-only
-- [ ] A — Policy, action grants, protected export enforced on the backend
-- [ ] A — Rate limits
-- [ ] A — Mock dashboard with fictional customers and Export customer records
-- [ ] B — Recruit and run 20+ volunteers (sessions A and B; ≥5 with session C on a second device)
-- [ ] B — Geometry features (block G)
-- [ ] B — Pairwise verifier M1 trained on SapiMouse
-- [ ] B — Export volunteer data, split by participant hash, train, pick thresholds on validation
-- [ ] A+B — Model artifact loaded by the backend; scoring wired into policy
+- [x] A — Web: sign-in and account creation (`apps/web/src/product/SignIn.tsx`)
+- [x] A — Web: consent, optional raw-path retention, delete-my-profile behind trusted verification (`ProfileView.tsx`)
+- [x] A — Web: enrollment with progress, a practice round, and rounds from two separate sign-ins
+- [x] A — Simulated fallback, labelled demo-only on every surface (`FallbackPanel.tsx`)
+- [x] A — Protected export flow with four visibly different outcomes and a similarity meter (`ExportFlow.tsx`, `DecisionMeter.tsx`)
+- [x] A — Mock dashboard with fictional customers (`CustomersView.tsx`, `backend/cadence/demo_data.py`)
+- [x] A — Geometry features (block G) are part of the 42 features in `features/extract.py`
+- [x] A+B — Model artifact loaded by the backend; scoring wired into policy
+- [x] A — End-to-end browser run in a sandbox: an owner enrolled over two sign-ins was accepted and exported; a different movement style was held; a direct API export without a grant returned 403; the fallback released it
+- [ ] B — Recruit and run 20+ volunteers (sessions A and B; ≥5 with session C on a second device). **In progress**
+- [ ] B — **Train the real model once volunteers are in:** `cd backend && uv run python scripts/train.py --db <laptop1.db> --db <laptop2.db>`. Until then the server has no model and every check answers "Not enough evidence"
+- [ ] B — Pairwise verifier M1, trained on SapiMouse and volunteers, compared against B0
+- [ ] A — Retention purge job (the 30-day limit is stated in the UI but nothing deletes old rows yet)
+- [ ] A — Capture SDK passive in-app windows with a start/stop control (`createCadence`)
 
 ### Gate 3 — evaluation and hardening (target: Sun 8:30 AM)
 - [ ] B — `eval.json`: baseline vs models, counts, CIs, same-device and cross-device breakdowns
-- [ ] A — Evaluation dashboard reading `eval.json`, with "not enough data" states
-- [ ] A — Replay, expiry, cross-session, grant-reuse tests
+- [~] A — Evaluation view: the Movement profile page shows the active model's `eval.json` (counts, error rates, limitations) and the account's recent checks. Still missing: baseline-vs-model comparison, confidence intervals, device breakdowns
+- [x] A — Replay, expiry, cross-session, grant-reuse and rate-limit tests (36 backend tests)
 - [ ] A — Accessibility pass and responsive review in a real browser
 - [ ] A+B — README with setup commands and demo steps
 - [ ] A+B — Demo rehearsal with a real second person on the same laptop
@@ -335,19 +337,43 @@ npm run dev
 
 Checks: `cd backend && uv run pytest` and `npm run typecheck`.
 
-**Collection stations.** Run the whole stack on each collection laptop and open `http://localhost:5173`. Use localhost, not a LAN address: browsers only expose high-rate pointer samples on secure origins. Set a distinct Station name per laptop and pointing device (for example `nikhil-mouse`, `nikhil-trackpad`). A volunteer uses the same username on every laptop; it lands in the same train/validation/test split everywhere. On a laptop that has not seen the username, a returning volunteer gets a "check the spelling" message with a link to continue anyway. Recruiting progress: `http://localhost:5173/api/collect/overview`. Data lives in `backend/cadence.db` on each laptop; do not delete it, and copy it somewhere safe before code freeze.
+**Two entry points.** The product is at `http://localhost:5173/` (sign in, enroll, export). Volunteer collection is at `http://localhost:5173/collect`.
+
+**Collection stations.** Run the whole stack on each collection laptop and open `/collect`. Use localhost, not a LAN address: browsers only expose high-rate pointer samples on secure origins. Set a distinct Station name per laptop and pointing device (for example `nikhil-mouse`, `nikhil-trackpad`). A volunteer uses the same username on every laptop; it lands in the same train/validation/test split everywhere. Recruiting progress: `http://localhost:5173/api/collect/overview`. Data lives in `backend/cadence.db` on each laptop; do not delete it, and copy it somewhere safe before code freeze. **Do not `git pull` or edit files while a volunteer is mid-round:** the dev server reloads the page.
+
+**Training the model.** Copy each laptop's `cadence.db` to one machine, then:
+
+```bash
+cd backend && uv run python scripts/train.py --db laptop1.db --db laptop2.db
+```
+
+It prints the evaluation summary and, if there is enough validation data to choose thresholds, activates the model under `artifacts/models/`. The running API picks it up on the next request. With too little data it activates nothing and says why.
+
+**Sandbox for development.** To exercise the product before real data exists, train on synthetic players and let the API load that model:
+
+```bash
+cd backend && uv run python scripts/train.py --synthetic 40
+```
+
+then start the API with `CADENCE_ALLOW_SYNTHETIC_MODEL=1`. The app shows a "Sandbox model" banner whenever such a model is active. Never demo synthetic numbers as results. To run a second stack beside a live collection stack, start another API on port 8001 and the web app with `CADENCE_API=http://127.0.0.1:8001` on another port, from a separate working copy.
 
 ### Where things are
 | Path | What |
 |---|---|
 | `backend/cadence/challenges/spec.py` | Challenge spec v1 and layout generator. Frozen after the pilot |
 | `backend/cadence/challenges/replay.py` | Server-side replay: validates a submitted round and derives the task timeline |
-| `backend/cadence/api/` | Routes: `collect.py`, `challenges.py` |
+| `backend/cadence/api/` | Routes: `collect.py`, `challenges.py`, `auth.py` (accounts, consent, fallback), `actions.py` (authorize, export) |
+| `backend/cadence/features/extract.py` | 42 movement features per round, shared by the API and training |
+| `backend/cadence/verifier/` | Baseline B0, metrics, thresholds, training, artifacts |
+| `backend/cadence/policy.py` | The four outcomes and how a score becomes one |
+| `backend/cadence/product.py` | Enrollment profile, trust window, action grants |
+| `backend/scripts/train.py` | Train, evaluate and activate a model |
 | `backend/cadence/collect.py` | Participant codes, checksum, split assignment |
 | `backend/cadence/synthetic.py` | Synthetic pointer player for tests. Never evidence about people |
 | `packages/sdk/src/` | Capture SDK. `geometry.ts` must stay in step with `spec.py` and `replay.py` |
 | `apps/web/src/challenge/` | Challenge surface |
 | `apps/web/src/collect/` | Collection mode screens |
+| `apps/web/src/product/` | Product screens: sign-in, customers, export flow, movement profile |
 
 Lane B starts from `samples` rows: `events_z` is zlib-compressed JSON of `[t_ms, x, y, kind, buttons]` (kind 0 move, 1 down, 2 up), and `timeline_json` holds the server-derived start and end time of every task, so feature code never has to re-detect clicks.
 
@@ -368,6 +394,9 @@ Lane B starts from `samples` rows: `events_z` is zlib-compressed JSON of `[t_ms,
 | Sat 4:20 PM | Everyone commits and pushes to `origin/main` automatically after each working change | Two people and assistants working in parallel need the latest code and tracker |
 | Sat evening | Volunteers choose their own username; generated codes removed | Easier to remember than a code. Costs: typos and two people picking the same name, guarded by the first-time/returning check and a near-duplicate report at export; split balance is no longer guaranteed |
 | Sat evening | No minimum break between sessions | More volunteers finish two sessions. Cost: back-to-back sessions are less independent, so the gap is reported with the results |
+| Sat evening | First model is the B0 distance baseline only, built by lane A | The product loop needs something to score with before lane B's models exist; M1 must beat it to replace it |
+| Sat evening | A model trained on synthetic players loads only with `CADENCE_ALLOW_SYNTHETIC_MODEL=1` and always shows a banner | Lets the flow be developed and rehearsed without ever passing synthetic numbers off as results |
+| Sat evening | Verification rounds are never added to the profile; enrollment needs trust at issue and at submit | Unverified activity must not be able to drift the owner's baseline |
 | Sat evening | Game restyled from cartoon to a flat survey sheet; spec v1 and artwork frozen | Requested polish done before volunteers start, so every volunteer sees the same stimulus. The 18 pilot rounds predate the restyle and stay excluded as pilot data |
 
 ## 13. Path to a real product (for the pitch and README)

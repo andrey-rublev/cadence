@@ -34,6 +34,8 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-rule: var(--rule);
+  --color-consistent: var(--consistent);
+  --color-uncertain: var(--uncertain);
 
   /* Dig site: used only inside the challenge sheet. */
   --color-ground: var(--ground);
@@ -88,6 +90,10 @@
   --input: #9aa4b3;
   --ring: #2f4bff;
   --radius: 0.5rem;
+
+  /* Verification outcomes only. Never decoration. */
+  --consistent: #1d7a4c;
+  --uncertain: #8f5f00;
 
   --ground: #ece7dd;
   --ground-light: #f7f4ee;

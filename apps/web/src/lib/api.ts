@@ -24,6 +24,17 @@ const ROUND_REJECTED: Record<string, string> = {
 }
 
 const MESSAGES: Record<string, string> = {
+  invalid_credentials: 'That username and password do not match an account.',
+  not_signed_in: 'You have been signed out. Sign in again to continue.',
+  trusted_verification_required: 'This step needs trusted verification first. Verify another way, then try again.',
+  enrollment_session_complete: 'This sign-in has recorded all its rounds. Sign out and back in later to record another session.',
+  no_rounds_left: 'There are no more rounds for this check. Verify another way to continue.',
+  verification_already_resolved: 'This check has already finished. Start the export again.',
+  code_incorrect: 'That code does not match. Check the six digits and try again.',
+  code_expired: 'That code is no longer valid. Get a new one.',
+  grant_expired: 'The approval for this export ran out after two minutes. Start the export again.',
+  grant_already_used: 'That approval was already used for one export. Start the export again.',
+  verification_required: 'This export needs verification first.',
   consent_required: 'Tick the consent box to take part.',
   invalid_username: 'Use 3 to 24 letters or numbers for the username. Dots, dashes and underscores are fine; spaces are not.',
   username_taken: 'Sessions are already recorded under that username on this laptop. Pick a different one, or choose "Yes" above if it was you.',
@@ -37,8 +48,9 @@ const MESSAGES: Record<string, string> = {
 }
 
 /** A plain-language explanation of a failed request, written for the person at the screen. */
-export function explain(error: unknown): string {
+export function explain(error: unknown, overrides: Record<string, string> = {}): string {
   if (error instanceof CadenceApiError) {
+    if (overrides[error.code]) return overrides[error.code]
     if (error.code === 'round_rejected') {
       const { reason } = error.detail as { reason: string }
       const known = ROUND_REJECTED[reason.split(':')[0]]
