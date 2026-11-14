@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Local databases and secrets
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+
+# Data: only labelled synthetic fixtures are committed
+data/external/
+data/volunteer/
+
+# Model artifacts are reproducible from scripts
+artifacts/models/*
+!artifacts/models/.gitkeep
+
+# Tooling
+.playwright-mcp/
+.DS_Store
+Thumbs.db

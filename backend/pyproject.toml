@@ -1,0 +1,28 @@
+[project]
+name = "cadence"
+version = "0.1.0"
+description = "Cadence behavioural verification backend (hackathon prototype)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy>=2.0",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "numpy>=2.0",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cadence"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

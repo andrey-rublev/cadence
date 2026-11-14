@@ -1,0 +1,139 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+@import "@fontsource-variable/atkinson-hyperlegible-mono";
+@import "@fontsource-variable/bricolage-grotesque/wdth.css";
+
+/*
+  Cadence visual system: drafting film and plotter pen.
+  One accent (pen blue) marks what you act on. Decision colours are reserved for
+  verification outcomes and never used as decoration.
+*/
+@theme inline {
+  --font-sans: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-rule: var(--rule);
+
+  /* Dig site: used only inside the challenge sheet. */
+  --color-soil: var(--soil);
+  --color-soil-deep: var(--soil-deep);
+  --color-earth: var(--earth);
+  --color-earth-light: var(--earth-light);
+  --color-pit: var(--pit);
+  --color-find: var(--find);
+  --color-find-light: var(--find-light);
+  --color-wood: var(--wood);
+  --color-mole: var(--mole);
+  --color-mole-light: var(--mole-light);
+  --color-snout: var(--snout);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  --animate-draw: draw 1100ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  --animate-beckon: beckon 1600ms ease-in-out infinite;
+
+  @keyframes draw {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes beckon {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 0; transform: scale(1.7); }
+  }
+}
+
+:root {
+  --background: #edf0f3; /* film */
+  --foreground: #131a2b; /* ink */
+  --card: #fbfcfd; /* sheet */
+  --card-foreground: #131a2b;
+  --popover: #fbfcfd;
+  --popover-foreground: #131a2b;
+  --primary: #2f4bff; /* pen */
+  --primary-foreground: #ffffff;
+  --secondary: #e2e6ec;
+  --secondary-foreground: #131a2b;
+  --muted: #e2e6ec;
+  --muted-foreground: #525c6e; /* graphite */
+  --accent: #e3e8ff;
+  --accent-foreground: #1b2bb0;
+  --destructive: #b3301c;
+  --border: #d3d9e1;
+  --rule: #c3cad5;
+  --input: #9aa4b3;
+  --ring: #2f4bff;
+  --radius: 0.5rem;
+
+  --soil: #e7d8bb;
+  --soil-deep: #d0bb92;
+  --earth: #6f4c30;
+  --earth-light: #8b6341;
+  --pit: #2f2118;
+  --find: #e3a92c;
+  --find-light: #f6d679;
+  --wood: #b07a4b;
+  --mole: #4b3628;
+  --mole-light: #5f4636;
+  --snout: #eba6a6;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-size: 1.0625rem;
+    line-height: 1.55;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-heading;
+    font-stretch: 88%;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+/* Sandy ground with a survey grid and a few darker patches. */
+@utility dig-site {
+  background-color: var(--soil);
+  background-image:
+    radial-gradient(circle, color-mix(in oklab, var(--earth) 38%, transparent) 1px, transparent 1.3px),
+    radial-gradient(ellipse 46px 30px at 30% 35%, color-mix(in oklab, var(--soil-deep) 55%, transparent) 60%, transparent 100%),
+    radial-gradient(ellipse 60px 34px at 70% 60%, color-mix(in oklab, var(--soil-deep) 45%, transparent) 60%, transparent 100%);
+  background-size: 25px 25px, 230px 190px, 310px 270px;
+  background-position: 12.5px 12.5px, 0 0, 40px 70px;
+}

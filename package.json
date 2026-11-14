@@ -1,0 +1,10 @@
+{
+  "name": "cadence",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @cadence/web",
+    "build": "npm run build -w @cadence/web",
+    "typecheck": "npm run typecheck -w @cadence/sdk && npm run build -w @cadence/web"
+  }
+}

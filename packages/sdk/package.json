@@ -1,0 +1,15 @@
+{
+  "name": "@cadence/sdk",
+  "version": "0.1.0",
+  "description": "Cadence pointer capture SDK: consent-gated, bounded, pointer events only.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "typescript": "~7.0.2"
+  }
+}
