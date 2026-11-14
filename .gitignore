@@ -12,7 +12,10 @@ dist/
 
 # Local databases and secrets
 *.db
-!/backend/cadence.db
+# Snapshots of collected volunteer data are shared on purpose (private repo).
+# The live database each laptop writes to, backend/cadence.db, is never tracked:
+# a pull would overwrite that laptop's recordings.
+!/data/collected/*.db
 *.db-journal
 *.db-wal
 *.db-shm

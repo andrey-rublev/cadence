@@ -263,7 +263,8 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - Tick the tracker item in the same commit as the work.
 - Before pushing: `git pull --rebase origin main`, then run the checks for what you touched (`cd backend && uv run pytest`, `npm run typecheck`). Never push a broken build; if a check fails, fix it first.
 - No AI attribution lines in commit messages or pull requests. Commits are authored by the team.
-- Never committed (already in `.gitignore`): `backend/cadence.db`, `data/volunteer/`, `data/external/`, `.env`. Volunteer recordings exist only in `backend/cadence.db` on each collection laptop, so back that file up by hand.
+- Never committed (already in `.gitignore`): the live database `backend/cadence.db`, `data/volunteer/`, `data/external/`, `.env`. If the live database is tracked, every `git pull` on a collection laptop overwrites that laptop's recordings with someone else's.
+- **Sharing collected data:** stop the API, then copy the live database to `data/collected/<station>.db` (for example `cp backend/cadence.db data/collected/nathaniels-laptop.db`; stopping the API first folds the WAL into the file) and commit that copy. Snapshots are tracked on purpose; the repo is private. A newer snapshot of the same laptop replaces the older file. Rounds deleted on request disappear from the snapshot but stay in git history, so say so if a deletion must also be purged from history.
 
 ### Done so far
 - [x] Research: Counter-Strike source, published error rates, attacks, statistics, confounds (section 2)
@@ -341,10 +342,10 @@ Checks: `cd backend && uv run pytest` and `npm run typecheck`.
 
 **Collection stations.** Run the whole stack on each collection laptop and open `/collect`. Use localhost, not a LAN address: browsers only expose high-rate pointer samples on secure origins. Set a distinct Station name per laptop and pointing device (for example `nikhil-mouse`, `nikhil-trackpad`). A volunteer uses the same username on every laptop; it lands in the same train/validation/test split everywhere. Recruiting progress: `http://localhost:5173/api/collect/overview`. Data lives in `backend/cadence.db` on each laptop; do not delete it, and copy it somewhere safe before code freeze. **Do not `git pull` or edit files while a volunteer is mid-round:** the dev server reloads the page.
 
-**Training the model.** Copy each laptop's `cadence.db` to one machine, then:
+**Training the model.** Snapshot each laptop into `data/collected/` (see the working agreement), then:
 
 ```bash
-cd backend && uv run python scripts/train.py --db laptop1.db --db laptop2.db
+cd backend && uv run python scripts/train.py --db ../data/collected/nathaniels-laptop.db --db ../data/collected/nikhil-laptop.db
 ```
 
 It prints the evaluation summary and, if there is enough validation data to choose thresholds, activates the model under `artifacts/models/`. The running API picks it up on the next request. With too little data it activates nothing and says why.
