@@ -9,67 +9,6 @@ import { SessionScreen } from './SessionScreen'
 
 type Stage = 'loading' | 'intro' | 'session' | 'stopped'
 
-const RECORDED = [
-  'Where your pointer is and when you click, inside the dig site',
-  'The username you choose, and whether you use a mouse or a trackpad',
-]
-const NOT_RECORDED = [
-  'Your real name, email or contact details',
-  'Anything else you type, or anything outside this page',
-]
-
-function Intro({ onStarted }: { onStarted: (status: CollectStatus) => void }) {
-  return (
-    <div className="grid items-start gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
-      <div className="grid gap-8">
-        <div className="grid gap-4">
-          <p className="font-mono text-sm text-muted-foreground">MadHacks 2026 · research prototype</p>
-          <h1 className="text-5xl font-extrabold sm:text-6xl">
-            Is the way you move a pointer recognisably yours?
-          </h1>
-          <p className="max-w-prose text-lg text-muted-foreground">
-            We're testing whether a short pointing task can tell an account's owner from someone else
-            at the same keyboard. That takes real people. The task is a small digging game: one
-            practice round and six 20-second rounds, about three minutes in all. A second session,
-            ideally after a break, makes your data count twice.
-          </p>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div>
-            <h2 className="mb-2 text-lg font-bold">Recorded</h2>
-            <ul className="grid gap-2">
-              {RECORDED.map((item) => (
-                <li key={item} className="border-l-2 border-primary pl-3">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h2 className="mb-2 text-lg font-bold">Never recorded</h2>
-            <ul className="grid gap-2">
-              {NOT_RECORDED.map((item) => (
-                <li key={item} className="border-l-2 border-rule pl-3">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <p className="max-w-prose text-sm text-muted-foreground">
-          You pick a username, so your recordings are not tied to your name. They are used only to
-          train and test this hackathon project and are deleted within 30 days. To have yours
-          deleted sooner, tell anyone on the team your username.
-        </p>
-      </div>
-
-      <ConsentForm onStarted={onStarted} />
-    </div>
-  )
-}
-
 function Complete({ status, onExit }: { status: CollectStatus; onExit: () => void }) {
   const first = status.label === 'A'
   return (
@@ -140,12 +79,14 @@ export function CollectPage() {
       </header>
       <main>
         {stage === 'intro' && (
-          <Intro
-            onStarted={(started) => {
-              setStatus(started)
-              setStage('session')
-            }}
-          />
+          <div className="mx-auto max-w-xl">
+            <ConsentForm
+              onStarted={(started) => {
+                setStatus(started)
+                setStage('session')
+              }}
+            />
+          </div>
         )}
         {stage === 'session' && status && !status.complete && (
           <div className="mx-auto max-w-[800px]">

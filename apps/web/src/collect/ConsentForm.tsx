@@ -3,7 +3,6 @@ import { useState, type FormEvent } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -31,8 +30,6 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
   const [username, setUsername] = useState('')
   const [device, setDevice] = useState('mouse')
   const [station, setStation] = useState(() => localStorage.getItem(STATION_KEY) ?? '')
-  const [pilot, setPilot] = useState(false)
-  const [consent, setConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /** The typed username has no sessions on this laptop; offer to continue anyway. */
   const [unknown, setUnknown] = useState(false)
@@ -45,13 +42,12 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
     try {
       localStorage.setItem(STATION_KEY, station.trim())
       const status = await api.request<CollectStatus>('POST', '/collect/start', {
-        consent,
+        consent: true,
         username,
         returning: returning === 'yes',
         earlier_session_elsewhere: earlierSessionElsewhere,
         declared_device: device,
         station: station.trim(),
-        is_pilot: pilot,
       })
       onStarted(status)
     } catch (e) {
@@ -89,14 +85,8 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
           required
           minLength={3}
           maxLength={24}
-          aria-describedby="username-hint"
           className="h-11 font-mono text-lg"
         />
-        <p id="username-hint" className="text-sm text-muted-foreground">
-          {returning === 'yes'
-            ? 'The same one you used last time, so your sessions are matched up.'
-            : '3 to 24 letters or numbers. Not your real name. You will type it again if you come back.'}
-        </p>
       </div>
 
       <fieldset>
@@ -120,23 +110,6 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
           autoComplete="off"
           className="h-10"
         />
-        <p className="text-sm text-muted-foreground">
-          Set once by the team for each laptop. It lets us compare different people on the same device.
-        </p>
-      </div>
-
-      <div className="grid gap-3 border-t border-rule pt-5">
-        <label className="flex cursor-pointer items-start gap-3">
-          <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-1" />
-          <span>
-            I agree to my pointer movement on this page being recorded and used to train and test
-            this prototype.
-          </span>
-        </label>
-        <label className="flex cursor-pointer items-start gap-3 text-muted-foreground">
-          <Checkbox checked={pilot} onCheckedChange={(v) => setPilot(v === true)} className="mt-1" />
-          <span>I'm on the Cadence team. Keep this run out of the results.</span>
-        </label>
       </div>
 
       {error && (
@@ -157,9 +130,14 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
         </Alert>
       )}
 
-      <Button type="submit" size="lg" disabled={!consent || busy} className="h-12 text-base">
-        {busy ? 'Starting…' : 'Start session'}
-      </Button>
+      <div className="grid gap-2">
+        <p id="collection-consent" className="text-sm text-muted-foreground">
+          The game records your pointer movements for training and testing.
+        </p>
+        <Button type="submit" size="lg" disabled={busy} aria-describedby="collection-consent" className="h-12 text-base">
+          {busy ? 'Starting…' : 'Agree and start session'}
+        </Button>
+      </div>
     </form>
   )
 }
