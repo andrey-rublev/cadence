@@ -63,6 +63,75 @@ class Challenge(Base):
     __table_args__ = (Index("ix_challenges_session_issued", "session_id", "issued_at"),)
 
 
+class Account(Base):
+    """A signed-up user of the mock company dashboard."""
+
+    __tablename__ = "accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    # Consent to capture pointer movement; null until given. Withdrawn by deleting the profile.
+    consent_at: Mapped[float | None]
+    keep_raw: Mapped[bool] = mapped_column(default=False)  # raw trajectories kept for debugging
+    created_at: Mapped[float] = mapped_column(default=now)
+
+
+class TrustCode(Base):
+    """A one-time code for the SIMULATED fallback. Demo only; not production authentication."""
+
+    __tablename__ = "trust_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(default=0)
+    expires_at: Mapped[float]
+    used_at: Mapped[float | None]
+
+
+class Verification(Base):
+    """One attempt to clear a protected action. Accumulates rounds until it resolves."""
+
+    __tablename__ = "verifications"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    account_id: Mapped[int] = mapped_column(index=True)
+    action: Mapped[str] = mapped_column(String(40))
+    challenge_id: Mapped[str | None] = mapped_column(String(32))  # the round currently issued
+    probes_json: Mapped[str] = mapped_column(default="[]")  # feature vectors of submitted rounds
+    decision_json: Mapped[str]
+    resolved_by: Mapped[str | None] = mapped_column(String(12))  # behavior | fallback
+    created_at: Mapped[float] = mapped_column(default=now)
+    updated_at: Mapped[float] = mapped_column(default=now)
+
+
+class ActionGrant(Base):
+    """Server-side permission for one protected action in one session. Short-lived, single use."""
+
+    __tablename__ = "action_grants"
+
+    id: Mapped[str] = mapped_column(String(43), primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    account_id: Mapped[int]
+    action: Mapped[str] = mapped_column(String(40))
+    basis: Mapped[str] = mapped_column(String(12))  # behavior | fallback
+    expires_at: Mapped[float]
+    used_at: Mapped[float | None]
+    created_at: Mapped[float] = mapped_column(default=now)
+
+
+class SampleFeatures(Base):
+    """Derived movement features for a sample. Preferred over raw trajectories for storage."""
+
+    __tablename__ = "sample_features"
+
+    sample_id: Mapped[int] = mapped_column(ForeignKey("samples.id"), primary_key=True)
+    feature_schema: Mapped[int]
+    values_json: Mapped[str]
+
+
 class Sample(Base):
     """One completed challenge round. Raw events are kept only with consent."""
 

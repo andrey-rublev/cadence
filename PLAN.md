@@ -291,7 +291,8 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [ ] B — Export script: merge laptops by username, flag near-duplicate usernames, report the gap between each person's sessions
 
 ### Gate 2 — Tier 1 end to end (target: Sun 4:30 AM)
-- [ ] A — Accounts, server-side sessions, sign-in
+- [x] A — **Backend for the whole Gate 2 loop** (36 tests): accounts and sign-in (`api/auth.py`), consent and profile deletion, simulated fallback, enrollment gated on consent + trusted verification, feature extraction (`features/extract.py`, 42 features), baseline verifier B0 and thresholds (`verifier/`), policy (`policy.py`), action grants and the protected export (`api/actions.py`), rate limits, and `scripts/train.py`. Web screens for these are next
+- [ ] A — Accounts, server-side sessions, sign-in (web screens)
 - [ ] A — Consent, retention setting, delete-my-profile
 - [ ] A — Enrollment flow with progress (≥2 sessions, ≥6 scored rounds)
 - [ ] A — Simulated fallback behind `TrustedVerifier`, labelled demo-only

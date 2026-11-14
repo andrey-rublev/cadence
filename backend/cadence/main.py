@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .api import challenges, collect
+from .api import actions, auth, challenges, collect
 from .core.config import settings
 from .core.db import init_db
 
@@ -32,3 +32,5 @@ def health() -> dict:
 
 app.include_router(collect.router)
 app.include_router(challenges.router)
+app.include_router(auth.router)
+app.include_router(actions.router)

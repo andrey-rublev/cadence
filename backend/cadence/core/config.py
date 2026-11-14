@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     collect_rounds: int = 6  # scored rounds per collection session, after one warm-up
     split_salt: str = "cadence-split-v1"
 
+    # Product: enrollment, trusted fallback and protected actions.
+    enroll_min_sessions: int = 2
+    enroll_min_rounds: int = 6
+    enroll_rounds_per_session: int = 4  # scored rounds per enrollment session, after one practice round
+    trust_ttl_s: int = 900  # how long a completed trusted verification stays fresh
+    trust_code_ttl_s: int = 300
+    grant_ttl_s: int = 120
+    verify_max_rounds: int = 3  # one round, plus up to two more while the result is uncertain
+    # Development only: lets a model trained on synthetic players gate actions.
+    allow_synthetic_model: bool = False
+
     retention_days: int = 30
     max_body_bytes: int = 4_000_000
 

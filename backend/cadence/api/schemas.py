@@ -47,7 +47,3 @@ class CollectStatus(BaseModel):
     rounds_total: int
     complete: bool
 
-
-class SubmitResult(BaseModel):
-    accepted: bool
-    collect: CollectStatus | None = None
