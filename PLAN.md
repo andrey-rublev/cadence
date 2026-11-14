@@ -136,7 +136,7 @@ Plus per submission: `challenge_id`, `area {w,h,scale}`, `devicePixelRatio`, `de
 
 **Do not change spec v1 after volunteer collection starts.** Data cannot be re-collected.
 
-**Theme.** The tasks are dressed as a dig site: click targets are marked spots to dig (each leaves a hole), the drag is a gold nugget carried into a crate, and the tracking target is a tunnelling mole. This is artwork only. Positions, sizes, hit areas, timing and the replay rules are untouched, and every piece of art fills exactly its task's hit circle. What people see is still part of the stimulus, so the artwork is frozen together with spec v1 at the pilot.
+**Theme.** The tasks are drawn as a dig-site survey sheet (flat, one accent colour; pen blue always means "act on this"): click targets are marked spots to dig (each leaves a contour-ring depression), the drag is a brass find carried into a tray, and the tracking target is a tunnelling marker that leaves a thin trail. A three-stage progress strip (Dig, Carry, Follow) sits above the sheet. This is artwork only. Positions, sizes, hit areas, timing and the replay rules are untouched, and every piece of art fills exactly its task's hit circle. What people see is still part of the stimulus, so the artwork is frozen together with spec v1 at the pilot.
 
 **Decision** returned by scoring: `CONSISTENT | UNCERTAIN | INCONSISTENT | INSUFFICIENT_EVIDENCE`, with `score`, both thresholds, `evidence {rounds, strokes, seconds}`, `model_version`. Never a probability.
 
@@ -277,7 +277,8 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [x] A — Capture SDK: pointer recorder and challenge runner (`recorder.ts`, `challenge.ts`, `client.ts`)
 - [ ] A — Capture SDK: passive in-app windows with start/stop control and consent gate (`createCadence`); needs the Gate 2 endpoint
 - [x] A — Three challenge tasks in one sheet: target click, drag and drop, tracking
-- [x] A — Dig-site theme for the tasks (dig spots, nugget into crate, follow the mole); cosmetic only, in `apps/web/src/challenge/DigArt.tsx`
+- [x] A — Dig-site survey-sheet theme for the tasks (dig spots, find into tray, follow the marker) and round progress strip; cosmetic only, in `apps/web/src/challenge/DigArt.tsx`
+- [x] A+B — Pilot run on a real mouse (18 rounds, ~190 samples/s, rounds of 13–18 s). **Spec v1 and its artwork are frozen from the commit that adds this line. Collect only on that commit or later, and do not change `spec.py`, `replay.py`, `DigArt.tsx` or `ChallengeSheet.tsx` visuals afterwards.** Collection URL: `http://localhost:5173/collect`
 - [x] A — Collection mode: consent, self-chosen username, sessions A/B/C, practice round + 6 rounds, no enforced break
 - [x] A — Browser check with real pointer events: a full session accepted by the server; desktop, tablet and mobile layouts reviewed
 - [x] B — Synthetic player (`backend/cadence/synthetic.py`), used by tests; labelled synthetic
@@ -366,7 +367,7 @@ Lane B starts from `samples` rows: `events_z` is zlib-compressed JSON of `[t_ms,
 | Sat 4:20 PM | Everyone commits and pushes to `origin/main` automatically after each working change | Two people and assistants working in parallel need the latest code and tracker |
 | Sat evening | Volunteers choose their own username; generated codes removed | Easier to remember than a code. Costs: typos and two people picking the same name, guarded by the first-time/returning check and a near-duplicate report at export; split balance is no longer guaranteed |
 | Sat evening | No minimum break between sessions | More volunteers finish two sessions. Cost: back-to-back sessions are less independent, so the gap is reported with the results |
-| pending | Challenge spec v1 frozen | After the pilot at Gate 1 |
+| Sat evening | Game restyled from cartoon to a flat survey sheet; spec v1 and artwork frozen | Requested polish done before volunteers start, so every volunteer sees the same stimulus. The 18 pilot rounds predate the restyle and stay excluded as pilot data |
 
 ## 13. Path to a real product (for the pitch and README)
 - Position as a step-up risk signal beside device and network signals, in the category of BioCatch and BehavioSec. The business metric is how many genuine sessions avoid a step-up prompt at a fixed impostor pass rate.

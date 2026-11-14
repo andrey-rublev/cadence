@@ -18,9 +18,9 @@ export interface SubmitResult {
 
 const ROUND_REJECTED: Record<string, string> = {
   target_not_hit: 'The recording did not include a dig on every marked spot.',
-  drag_not_completed: 'The recording did not include every nugget reaching the crate.',
-  tracking_not_started: 'The recording ended before the mole started moving.',
-  tracking_not_followed: 'The pointer was off the mole for almost all of the six seconds.',
+  drag_not_completed: 'The recording did not include every find reaching the tray.',
+  tracking_not_started: 'The recording ended before the marker started moving.',
+  tracking_not_followed: 'The pointer was off the marker for almost all of the six seconds.',
 }
 
 const MESSAGES: Record<string, string> = {

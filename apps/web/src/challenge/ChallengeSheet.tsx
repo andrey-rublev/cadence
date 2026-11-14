@@ -7,7 +7,8 @@ import {
 } from '@cadence/sdk'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { Crate, DigSpot, Find, Hole, Mole } from './DigArt'
+import { DigSpot, Digger, Find, Hole, SurveyGround, Tray } from './DigArt'
+import { SHEET } from './sheet'
 
 interface ChallengeSheetProps {
   /** The round to run. `null` shows an idle sheet. */
@@ -20,13 +21,11 @@ interface ChallengeSheetProps {
   children?: ReactNode
 }
 
-export const SHEET = { w: 800, h: 500 }
-
-/** The tunnel behind the mole gains a point each time it has moved this far (px). */
+/** The tunnel behind the marker gains a point each time it has moved this far (px). */
 const TUNNEL_STEP = 5
 
 /**
- * The challenge surface, dressed as a dig site. The theme is cosmetic: geometry, hit
+ * The challenge surface, drawn as a dig-site survey sheet. The theme is cosmetic: geometry, hit
  * areas and rules come from the layout and the SDK, unchanged.
  *
  * Pointer capture happens only on this element and only while a round is running.
@@ -37,7 +36,6 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
   const surface = useRef<HTMLDivElement>(null)
   const token = useRef<SVGGElement>(null)
   const target = useRef<SVGGElement>(null)
-  const mole = useRef<SVGGElement>(null)
   const tunnel = useRef<SVGPolylineElement>(null)
   const progress = useRef<SVGRectElement>(null)
   const [view, setView] = useState<ChallengeView | null>(null)
@@ -48,7 +46,6 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
 
   useEffect(() => {
     if (!layout || !surface.current) return
-    let last: { x: number; y: number } | null = null
     let tunnelEnd: { x: number; y: number } | null = null
     let tunnelPoints = ''
 
@@ -63,11 +60,6 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
         const { x, y } = trackTarget
         target.current?.setAttribute('transform', `translate(${x} ${y})`)
         progress.current?.setAttribute('width', String(trackProgress * SHEET.w))
-        if (last && Math.hypot(x - last.x, y - last.y) > 0.2) {
-          const heading = (Math.atan2(y - last.y, x - last.x) * 180) / Math.PI
-          mole.current?.setAttribute('transform', `rotate(${heading})`)
-        }
-        last = trackTarget
         if (!tunnelEnd || Math.hypot(x - tunnelEnd.x, y - tunnelEnd.y) >= TUNNEL_STEP) {
           tunnelEnd = trackTarget
           tunnelPoints += `${x.toFixed(1)},${y.toFixed(1)} `
@@ -96,10 +88,11 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
     <div
       ref={surface}
       aria-label="Challenge area"
-      className="dig-site relative w-full max-w-[800px] touch-none overflow-hidden rounded-lg border border-earth/40 select-none"
+      className="relative w-full max-w-[800px] touch-none overflow-hidden rounded-lg border border-rule bg-ground select-none"
       style={{ aspectRatio: `${SHEET.w} / ${SHEET.h}` }}
     >
       <svg viewBox={`0 0 ${SHEET.w} ${SHEET.h}`} className="absolute inset-0 size-full" aria-hidden="true">
+        <SurveyGround />
         {underlay}
 
         {dug.map((spot) => (
@@ -118,7 +111,7 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
         {task?.kind === 'drag' && (
           <g key={task.id}>
             <g transform={`translate(${task.to.x} ${task.to.y})`}>
-              <Crate r={task.to.r} />
+              <Tray r={task.to.r} />
             </g>
             <g
               ref={token}
@@ -134,16 +127,14 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
           <>
             <polyline
               ref={tunnel}
-              className="fill-none stroke-pit/30"
-              strokeWidth={task.r * 0.9}
+              className="fill-none stroke-contour-deep/60"
+              strokeWidth={5}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
             <g ref={target} transform={`translate(${trackOrigin.x} ${trackOrigin.y})`}>
               {!view?.tracking && <circle r={task.r} className={beckon} />}
-              <g ref={mole}>
-                <Mole r={task.r} />
-              </g>
+              <Digger r={task.r} />
             </g>
             <rect ref={progress} x={0} y={SHEET.h - 5} width={0} height={5} className="fill-primary" />
           </>

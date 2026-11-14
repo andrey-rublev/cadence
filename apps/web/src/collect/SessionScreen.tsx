@@ -1,7 +1,8 @@
 import type { ChallengeResult, ChallengeView, IssuedChallenge, Layout } from '@cadence/sdk'
 import { useState } from 'react'
 
-import { ChallengeSheet, SHEET } from '@/challenge/ChallengeSheet'
+import { ChallengeSheet } from '@/challenge/ChallengeSheet'
+import { SHEET } from '@/challenge/sheet'
 import { tracePath } from '@/challenge/trace'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -22,11 +23,41 @@ function instruction(layout: Layout, view: ChallengeView | null): string {
   if (task.kind === 'drag') {
     const n = before.filter((t) => t.kind === 'drag').length + 1
     const total = layout.tasks.filter((t) => t.kind === 'drag').length
-    return `Drag the gold nugget into the crate. ${n} of ${total}`
+    return `Drag the find into the tray. ${n} of ${total}`
   }
   return view.tracking
-    ? 'Keep your pointer on the mole until the bar fills.'
-    : 'Move onto the mole. It starts tunnelling when you touch it.'
+    ? 'Keep your pointer on the marker until the bar fills.'
+    : 'Move onto the marker. It starts tunnelling when you touch it.'
+}
+
+/** Where the round stands: three stages, each a labelled bar. The live instruction says the same in words. */
+function RoundProgress({ layout, view }: { layout: Layout; view: ChallengeView | null }) {
+  const done = layout.tasks.slice(0, view?.taskIndex ?? 0)
+  const count = (kind: string, of: Layout['tasks']) => of.filter((t) => t.kind === kind).length
+  const stages = [
+    // The first click only starts the round, so it is not one of the digs.
+    { name: 'Dig', done: Math.max(0, count('click', done) - 1), total: count('click', layout.tasks) - 1 },
+    { name: 'Carry', done: count('drag', done), total: count('drag', layout.tasks) },
+    { name: 'Follow', done: count('track', done), total: 1 },
+  ]
+  return (
+    <ol aria-hidden="true" className="grid grid-cols-[8fr_3fr_2fr] gap-2">
+      {stages.map((stage) => (
+        <li key={stage.name} className="grid gap-1">
+          <span className="font-mono text-xs text-muted-foreground">
+            {stage.name}
+            {stage.total > 1 && ` ${stage.done}/${stage.total}`}
+          </span>
+          <span className="h-1 overflow-hidden rounded-full bg-rule">
+            <span
+              className="block h-full origin-left bg-primary transition-transform duration-200 ease-out motion-reduce:transition-none"
+              style={{ transform: `scaleX(${stage.done / stage.total})` }}
+            />
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
 }
 
 function TraceStrip({ traces, slots }: { traces: Trace[]; slots: number }) {
@@ -122,6 +153,8 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
             : 'Each round has a new layout. Move the way you normally would.'}
       </p>
 
+      {challenge && <RoundProgress layout={challenge.layout} view={view} />}
+
       <ChallengeSheet
         layout={challenge?.layout ?? null}
         onComplete={finishRound}
@@ -133,7 +166,7 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
               key={traces.length}
               d={lastTrace}
               pathLength={1}
-              className="animate-draw fill-none stroke-earth/45 [stroke-dasharray:1] motion-reduce:animate-none"
+              className="animate-draw fill-none stroke-foreground/30 [stroke-dasharray:1] motion-reduce:animate-none"
               strokeWidth="2"
               strokeLinejoin="round"
             />
@@ -151,7 +184,7 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : (
-            <p>Dig eight spots, crate three nuggets, then follow a mole for six seconds. About 20 seconds.</p>
+            <p>Dig eight spots, carry three finds to the tray, then follow the tunnelling marker for six seconds. About 20 seconds.</p>
           )}
           <Button size="lg" onClick={startRound} disabled={busy} className="h-12 px-6 text-base">
             {busy ? 'One moment…' : `Start ${roundName.toLowerCase()}`}
