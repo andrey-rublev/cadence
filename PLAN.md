@@ -356,6 +356,7 @@ Not measurable yet: whether enrolling on two sessions beats one (needs a third s
 - [ ] A — Accessibility pass and responsive review in a real browser
 - [ ] A+B — README with setup commands and demo steps
 - [ ] A+B — Demo rehearsal with a real second person on the same laptop
+- [ ] A+B — Record the three-minute demo video (shot list in `DEMO_VIDEO.md`)
 
 ### Extensions (only after Gate 3)
 - [ ] Adaptive challenge selection
