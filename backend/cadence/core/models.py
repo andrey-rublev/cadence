@@ -107,6 +107,9 @@ class SiteLink(Base):
     subject: Mapped[str] = mapped_column(String(43), unique=True, index=True)  # opaque, per site
     created_at: Mapped[float] = mapped_column(default=now)
     revoked_at: Mapped[float | None]
+    # Practice sign-ins typed right after connecting: one sitting, so one session for all.
+    practice_attempts: Mapped[int] = mapped_column(default=0)
+    practice_session_id: Mapped[int | None]
 
 
 class LinkCode(Base):
@@ -221,7 +224,10 @@ class PassiveWindow(Base):
     participant_id: Mapped[int | None] = mapped_column(ForeignKey("participants.id"), index=True)
     modality: Mapped[str] = mapped_column(String(8))  # pointer | keys
     # enroll (during a trusted session) | evidence | collect (a volunteer's recording)
+    # | login (sign-in length typing) | signin (a verified sign-in on a partner site)
     purpose: Mapped[str] = mapped_column(String(10))
+    # The partner site a learned window came from; earlier sign-ins are compared per site.
+    site_id: Mapped[str | None] = mapped_column(String(32), index=True)
     feature_schema: Mapped[int]
     values_json: Mapped[str]
     # SHA-256 of the submitted events: an identical window is never accepted twice.

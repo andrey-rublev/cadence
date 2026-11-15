@@ -6,7 +6,8 @@ The browser sends ordinary pointer movement and key timing. It arrives two ways:
   trusted session they build the profile; otherwise they are evidence for that sign-in;
 - from a partner site, as whatever the person happened to do before signing in or before a
   sensitive action (`/v1/evidence`), with no minimum. A sign-in usually gives 15-45 keys,
-  which the login model scores; longer stretches go to the 50-key model.
+  which the login model scores; longer stretches go to the 50-key model. Once a person has
+  a few verified sign-ins on that site, a new sign-in is also compared with those.
 
 A decision combines the inputs that could be scored:
 
@@ -58,6 +59,28 @@ def login_model() -> Model | None:
     return load_active(settings.artifacts_dir / "keys-login", KEY_FEATURE_NAMES, KEY_SCHEMA)
 
 
+def history_model() -> Model | None:
+    """Compares a sign-in with the person's earlier verified sign-ins on the same site. Its
+    thresholds apply to the combined score (mean of this and the login model's score)."""
+    return load_active(settings.artifacts_dir / "keys-history", KEY_FEATURE_NAMES, KEY_SCHEMA)
+
+
+def earlier_sign_ins(db: Session, account_id: int, site_id: str) -> list[np.ndarray]:
+    """The latest verified sign-ins on this site, oldest first (at most `history_max_sign_ins`)."""
+    rows = db.scalars(
+        select(PassiveWindow.values_json)
+        .where(
+            PassiveWindow.account_id == account_id,
+            PassiveWindow.site_id == site_id,
+            PassiveWindow.purpose == "signin",
+            PassiveWindow.feature_schema == KEY_SCHEMA,
+        )
+        .order_by(PassiveWindow.captured_at.desc(), PassiveWindow.id.desc())
+        .limit(settings.history_max_sign_ins)
+    ).all()
+    return [np.array(json.loads(v), dtype=float) for v in reversed(rows)]
+
+
 def windows_needed(modality: str) -> int:
     return settings.passive_min_windows if modality == "keys" else settings.setup_pointer_windows
 
@@ -82,7 +105,7 @@ def sign_ins(db: Session, account_id: int) -> int:
     return int(
         db.scalar(
             select(func.count(func.distinct(PassiveWindow.session_id))).where(
-                PassiveWindow.account_id == account_id, PassiveWindow.purpose.in_(("enroll", "login"))
+                PassiveWindow.account_id == account_id, PassiveWindow.purpose.in_(("enroll", "login", "signin"))
             )
         )
         or 0
@@ -178,6 +201,9 @@ class Part:
     model_version: str | None = None
     use: str = "standard"  # standard (50-key / 12-click windows) | login (sign-in length typing)
     amount: int = 0  # keys or clicks the scored evidence contained
+    # Sign-ins only: earlier verified sign-ins on the same site the score also compared with.
+    earlier_sign_ins: int = 0
+    history_model_version: str | None = None
 
 
 @dataclass
@@ -191,7 +217,14 @@ class PassiveDecision:
 
 
 def _score_part(
-    db: Session, account_id: int, modality: str, probes: list[np.ndarray], model: Model | None, use: str, amount: int
+    db: Session,
+    account_id: int,
+    modality: str,
+    probes: list[np.ndarray],
+    model: Model | None,
+    use: str,
+    amount: int,
+    one_sitting_ok: bool = False,
 ) -> Part:
     part = Part(modality, INSUFFICIENT, use=use, amount=amount)
     if model is None:
@@ -200,7 +233,8 @@ def _score_part(
     part.model_version, part.reject_at, part.accept_at = model.version, model.reject_at, model.accept_at
     enrolled = _vectors(db, account_id, modality, "enroll")
     part.enrollment_windows = len(enrolled)
-    if not _sufficient(len(enrolled), sign_ins(db, account_id), modality):
+    signed_in = max(sign_ins(db, account_id), settings.passive_min_sessions if one_sitting_ok else 0)
+    if not _sufficient(len(enrolled), signed_in, modality):
         part.reason = "not_enrolled"
         return part
     part.windows = len(probes)
@@ -288,8 +322,43 @@ def decide_passive(db: Session, account_id: int, session: UserSession) -> Passiv
     return _combine(parts)
 
 
-def decide_evidence(db: Session, account_id: int, windows: list[dict]) -> PassiveDecision:
-    """A check for a partner site, from evidence of any length sent by the person's browser."""
+def score_practice(db: Session, account_id: int, window: dict) -> Part:
+    """A practice sign-in, typed right after connecting a site, against the typing-test profile.
+    The profile may still be a single sitting: practice is what adds the second one."""
+    return _score_part(
+        db, account_id, "keys", [_array(window["values"])], login_model(), "login", window["keys"], one_sitting_ok=True
+    )
+
+
+def _with_earlier_sign_ins(db: Session, account_id: int, site_id: str, part: Part, probes: list[np.ndarray]) -> Part:
+    """Fold the comparison with earlier verified sign-ins on this site into a sign-in's score.
+
+    The combined score is the mean of the login model's score against the profile and the
+    history model's score against those sign-ins; it has its own thresholds. With fewer than
+    `history_min_sign_ins` earlier sign-ins, or no history model, the part is left as it was.
+    """
+    model = history_model()
+    if model is None or part.score is None or not probes:
+        return part
+    earlier = earlier_sign_ins(db, account_id, site_id)
+    if len(earlier) < settings.history_min_sign_ins:
+        return part
+    scores = model.verifier.score_many(np.array(earlier), np.array(probes))
+    scores = scores[np.isfinite(scores)]
+    if not scores.size:
+        return part
+    part.score = (part.score + float(scores.mean())) / 2
+    part.reject_at, part.accept_at = model.reject_at, model.accept_at
+    part.earlier_sign_ins, part.history_model_version = len(earlier), model.version
+    part.outcome = CONSISTENT if part.score > model.accept_at else INCONSISTENT if part.score < model.reject_at else UNCERTAIN
+    return part
+
+
+def decide_evidence(
+    db: Session, account_id: int, windows: list[dict], site_id: str | None = None, action: str | None = None
+) -> PassiveDecision:
+    """A check for a partner site, from evidence of any length sent by the person's browser.
+    A sign-in (`action` "sign_in") is also compared with earlier sign-ins on `site_id`."""
     latest = settings.passive_evidence_windows
     long_keys = [w for w in windows if w["modality"] == "keys" and w["use"] == "standard"][-latest:]
     short_keys = [w for w in windows if w["modality"] == "keys" and w["use"] == "login"]
@@ -300,10 +369,10 @@ def decide_evidence(db: Session, account_id: int, windows: list[dict]) -> Passiv
             sum(w["keys"] for w in long_keys),
         )  # fmt: skip
     else:
-        keys = _score_part(
-            db, account_id, "keys", [_array(w["values"]) for w in short_keys], login_model(), "login",
-            sum(w["keys"] for w in short_keys),
-        )  # fmt: skip
+        probes = [_array(w["values"]) for w in short_keys]
+        keys = _score_part(db, account_id, "keys", probes, login_model(), "login", sum(w["keys"] for w in short_keys))
+        if action == "sign_in" and site_id is not None:
+            keys = _with_earlier_sign_ins(db, account_id, site_id, keys, probes)
     clicks = _score_part(
         db, account_id, "pointer", [_array(w["values"]) for w in pointer], passive_model("pointer"), "standard",
         sum(w["strokes"] for w in pointer),

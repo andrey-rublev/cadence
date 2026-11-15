@@ -133,9 +133,11 @@ export function SignIn({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
         </p>
         <ol className="grid max-w-prose gap-2">
           <li className="border-l-2 border-primary pl-3">Set up once here: a short click test and a typing test.</li>
-          <li className="border-l-2 border-primary pl-3">Sign in a couple more times so Cadence sees more than one sitting.</li>
           <li className="border-l-2 border-primary pl-3">
-            Connect a site. Each verified sign-in there makes the next check better informed.
+            Connect a site, then type that site’s own sign-in a few times so Cadence learns it.
+          </li>
+          <li className="border-l-2 border-primary pl-3">
+            From then on, each verified sign-in there makes the next check better informed.
           </li>
           <li className="border-l-2 border-rule pl-3 text-muted-foreground">
             Cadence never sees what you type, only key timing and which part of the keyboard. A failed check never

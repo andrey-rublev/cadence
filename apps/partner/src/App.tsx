@@ -145,7 +145,7 @@ export default function App() {
           </div>
         )}
         {view === 'customers' && <Customers me={me} recorder={recorder} released={released} />}
-        {view === 'security' && <Security me={me} onMe={setMe} />}
+        {view === 'security' && <Security me={me} onMe={setMe} pageRecorder={recorder} />}
       </main>
     </div>
   )

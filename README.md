@@ -2,7 +2,7 @@
 
 A second factor made from how you type and click. A hackathon prototype (MadHacks 2026) with measured limitations, not production authentication.
 
-Cadence is a service other sites plug in. You set it up once on the Cadence site: a short click test, a typing test with given sentences, and a couple of separate sign-ins. After that, a site that uses Cadence checks the sign-in you were doing anyway. When the typing looks like you, there is no code to fetch. When Cadence is unsure, it picks the quick test **your own profile** is most likely to pass, with an authenticator as the alternative. Every verified sign-in joins your profile, so checks get better informed the more you use it.
+Cadence is a service other sites plug in. You set it up once on the Cadence site: a short click test and a typing test with given sentences. When you connect a site, you type that site's own email and password a few times so Cadence learns how you sign in there. After that, the site checks the sign-in you were doing anyway. When the typing looks like you, there is no code to fetch. When Cadence is unsure, it picks the quick test **your own profile** is most likely to pass, with an authenticator as the alternative. Every verified sign-in joins your profile, so checks get better informed the more you use it.
 
 ## Run it
 
@@ -28,12 +28,13 @@ If the ports are busy: `npm start -- --api-port 8002 --web-port 5175 --partner-a
 
 ### The demo, step by step
 
-1. On **Cadence**, create an account and finish setup. The last step asks you to sign out and back in twice; type your username and password yourself rather than using autofill.
+1. On **Cadence**, create an account and finish setup (click test, then typing test).
 2. On **Northwind**, create an account, open **Security** and choose **Protect with Cadence**. Approve on Cadence.
-3. Sign out of Northwind and sign back in. Cadence decides from that sign-in's typing alone; if it looks like you, you are straight in, and Northwind shows what Cadence said.
-4. Have someone else sign in with your Northwind password (or type very differently). Cadence sends them to a verify page with a test picked for the account's owner.
-5. Write a customer note, then **Export customer records**: the export is checked the same way.
-6. The Cadence dashboard lists every check, how it was settled, and whether it was added to your profile.
+3. Back on Northwind, type your Northwind email and password three times when asked. Type them yourself rather than using autofill: the typing is what counts. Northwind checks the password; Cadence only gets the timing.
+4. Sign out of Northwind and sign back in (email, then password on the next screen). Cadence decides from that sign-in's typing alone; if it looks like you, you are straight in, and Northwind shows what Cadence said.
+5. Have someone else sign in with your Northwind password (or type very differently). Cadence sends them to a verify page with a test picked for the account's owner.
+6. Write a customer note, then **Export customer records**: the export is checked the same way.
+7. The Cadence dashboard lists every check, how it was settled, and whether it was added to your profile.
 
 ## How it works
 
@@ -49,6 +50,7 @@ Partner server         ---secret----------> Cadence /v1/checks/<id> -> resolved?
 - **Linking is OAuth-style.** The partner sends the person to Cadence `/connect`; they approve while signed in to Cadence; the partner exchanges a one-time code for an opaque subject.
 - **No minimum activity.** Whatever was typed or clicked is used. A sign-in (15 to 45 keys, the password part timing only) goes to a model trained for exactly that; longer stretches go to the 50-key model; too little evidence is never a pass, it goes to verification.
 - **Personalised step-up.** For each input, Cadence scores every sample in the person's profile against the rest. The input whose own samples sit furthest above the pass mark is the test recommended to them.
+- **Practice sign-ins per site.** Right after linking, the person types the partner's own email and password three times on the partner's sign-in form. The partner checks the password and passes Cadence an evidence token; Cadence keeps the timing as that site's sign-in samples. Practice is open for 30 minutes and 8 tries, and a sample unlike the typing-test profile is turned away, so someone else with the password cannot seed it. Comparing new sign-ins directly with these samples is built but off: on Aalto it added only about 0.002 AUC (below), so for now they complete the profile rather than change the score.
 - **Learning only from verified checks.** Evidence joins the profile only when the check passed or the person confirmed it. A sign-in that looked like someone else is never learned, even after the person confirms, because one bad sample hurts every later check.
 - **Characters never leave the page.** Keys become one of 13 keyboard zones in the browser; password fields send timing only.
 
@@ -59,12 +61,13 @@ Code: `backend/cadence/api/sites.py` (partner API, linking, verification), `back
 | Model | Data | Result |
 |---|---|---|
 | Typing at sign-in (15 to 45 keys, last 40% timing only) | Aalto 136M Keystrokes, 1,000 typists | AUC 0.932 (0.927 to 0.937), equal error 14.5%. By length: 15 to 24 keys 0.911, 25 to 34 keys 0.934, 35 to 45 keys 0.950 |
+| Typing at sign-in, also compared with 3 or 5 earlier sign-ins (not in use) | Aalto, 1,000 typists | AUC 0.933 with 3 earlier, 0.934 with 5 earlier, against 0.932 for the sign-in model alone: too small a gain to switch on. Aalto never repeats text; real sign-ins do |
 | Typing, 50 keys | Aalto, 1,000 typists | AUC 0.964 (0.961 to 0.968), equal error 9.9% |
 | Clicks, 12 per sample | SapiMouse, 120 people | AUC 0.82 (0.80 to 0.84), equal error 26% |
 
 These flatter real use. Aalto enrollment and probes come from the same sitting of copied sentences, and our own volunteers showed same-sitting tests overstate accuracy (AUC 0.91 against 0.75 across sessions). Sign-in probes were cut from sentences, not the same email and password typed each time. Thresholds come from these datasets, not from people using Cadence. Evidence comes from the client, so an attacker controlling the browser can script it: Cadence is a risk signal, and the fallback is always there. The authenticator in this demo is simulated and labelled as such everywhere.
 
-The three models are committed under `artifacts/models/` so a fresh clone works without the datasets. They were trained on research datasets used for non-commercial research with attribution: Dhakal et al., *Observations on Typing from 136 Million Keystrokes* (CHI 2018), and Antal et al., *SapiMouse* (2021). Retrain with `backend/scripts/aalto.py` (add `--login` for the sign-in model) and `backend/scripts/sapimouse.py`. [NO_GAME.md](NO_GAME.md) has the evaluation details; [PLAN.md](PLAN.md) has the research behind the project.
+The three models are committed under `artifacts/models/` so a fresh clone works without the datasets. They were trained on research datasets used for non-commercial research with attribution: Dhakal et al., *Observations on Typing from 136 Million Keystrokes* (CHI 2018), and Antal et al., *SapiMouse* (2021). Retrain with `backend/scripts/aalto.py` (add `--login` for the sign-in model, `--history` for the earlier-sign-ins comparison) and `backend/scripts/sapimouse.py`. [NO_GAME.md](NO_GAME.md) has the evaluation details; [PLAN.md](PLAN.md) has the research behind the project.
 
 ## Other commands
 

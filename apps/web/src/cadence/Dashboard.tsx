@@ -53,8 +53,9 @@ export function Dashboard({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         <p className="font-mono text-sm text-muted-foreground">Cadence is set up · {me.username}</p>
         <h1 className="text-4xl font-extrabold sm:text-5xl">Your sign-ins now carry a second check.</h1>
         <p className="max-w-prose text-lg text-muted-foreground">
-          Connected sites send Cadence the timing of your sign-in. Each time a check passes, or you confirm it was you,
-          that sign-in joins your profile, so the next one is judged against more of you.
+          When you connect a site, you type that site’s own sign-in a few times so Cadence learns it. After that, the
+          site sends Cadence the timing of each sign-in, and every one that passes, or that you confirm, joins your
+          profile.
         </p>
       </div>
 
@@ -77,6 +78,7 @@ export function Dashboard({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
                 <span className="grid">
                   <span className="font-medium">{site.name}</span>
                   <span className="text-sm text-muted-foreground">Connected {when(site.since)}</span>
+                  <span className="text-sm text-muted-foreground">{signInHistory(site, sites.sign_ins_compared)}</span>
                 </span>
                 <Button variant="ghost" onClick={() => disconnect(site.id)} className="h-10 px-3 text-sm">
                   <Unplug aria-hidden="true" />
@@ -112,8 +114,19 @@ export function Dashboard({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   )
 }
 
+function signInHistory(
+  { sign_ins_remembered: have, sign_ins_needed: need }: MySites['sites'][number],
+  compared: boolean,
+): string {
+  const kept = `${have} sign-in${have === 1 ? '' : 's'} on this site kept`
+  if (!compared) return `${kept}. Comparing new sign-ins with them is off until it is shown to help.`
+  if (have >= need) return `${kept}; new sign-ins are also compared with your latest ones.`
+  return `${kept}; from ${need}, new sign-ins are also compared with them.`
+}
+
 function CheckRow({ check }: { check: SiteCheckRecord }) {
   const scored = check.decision.parts.filter((p) => p.score !== null)
+  const earlier = check.decision.parts.find((p) => p.earlier_sign_ins)?.earlier_sign_ins
   return (
     <li className="grid gap-1 rounded-lg border border-rule px-4 py-3">
       <p className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -130,6 +143,7 @@ function CheckRow({ check }: { check: SiteCheckRecord }) {
             ({scored.map((p) => `${MODALITY_LABEL[p.modality].toLowerCase()} ${p.score?.toFixed(2)}`).join(', ')})
           </span>
         )}
+        {earlier && <span className="text-muted-foreground"> · compared with {earlier} earlier sign-ins</span>}
         {' · '}
         {check.resolved_by ? RESOLVED[check.resolved_by] : 'Not confirmed'}
         {check.learned && <span className="text-consistent"> · added to profile</span>}

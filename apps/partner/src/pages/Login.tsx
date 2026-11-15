@@ -3,6 +3,7 @@ import { ArrowRight, Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { CadenceBadge, Logo } from '@/components/Brand'
+import { SignInFields, type SignInStep } from '@/components/SignInFields'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,11 +11,13 @@ import { Label } from '@/components/ui/label'
 import { api, evidenceToken, explain, recordActivity, type Gate, type Me } from '@/lib/api'
 
 /**
- * Northwind's sign-in. Nothing here asks the person to do anything for Cadence: the typing and
- * clicking they do anyway is recorded in the browser and sent to Cadence on submit.
+ * Northwind's sign-in: email, then password, on two screens of one form. Nothing here asks the
+ * person to do anything for Cadence: the typing and clicking they do anyway, across both
+ * screens, is recorded in the browser and sent to Cadence on submit.
  */
 export function Login({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [step, setStep] = useState<SignInStep>('email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +33,11 @@ export function Login({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (mode === 'login' && step === 'email') {
+      setStep('password')
+      setError(null)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -42,7 +50,7 @@ export function Login({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
       }
       onSignedIn(out.me)
     } catch (e) {
-      recorder.current?.reset()
+      setPassword('')
       setError(explain(e))
       setBusy(false)
     }
@@ -73,31 +81,45 @@ export function Login({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
             </p>
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="email">Work email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              required
-              className="h-11 text-base"
+          {mode === 'login' ? (
+            <SignInFields
+              id="sign-in"
+              step={step}
+              email={email}
+              password={password}
+              onEmail={setEmail}
+              onPassword={setPassword}
+              onChangeEmail={() => (setStep('email'), setPassword(''), recorder.current?.reset())}
             />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              required
-              minLength={8}
-              className="h-11 text-base"
-            />
-          </div>
+          ) : (
+            <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="email">Work email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                  className="h-11 text-base"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  className="h-11 text-base"
+                />
+              </div>
+            </>
+          )}
 
           {error && (
             <Alert variant="destructive" role="alert">
@@ -112,7 +134,7 @@ export function Login({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
 
           <Button type="submit" size="lg" disabled={busy} className="h-11 text-base">
             {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
-            {mode === 'login' ? 'Sign in' : 'Create account'}
+            {mode === 'register' ? 'Create account' : step === 'email' ? 'Next' : 'Sign in'}
             {!busy && <ArrowRight aria-hidden="true" />}
           </Button>
 
@@ -120,7 +142,7 @@ export function Login({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
             {mode === 'login' ? 'New to Northwind? ' : 'Already have an account? '}
             <button
               type="button"
-              onClick={() => (setMode(mode === 'login' ? 'register' : 'login'), setError(null))}
+              onClick={() => (setMode(mode === 'login' ? 'register' : 'login'), setStep('email'), setError(null))}
               className="cursor-pointer font-medium text-foreground underline underline-offset-4"
             >
               {mode === 'login' ? 'Create an account' : 'Sign in'}

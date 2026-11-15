@@ -31,6 +31,25 @@ const MESSAGES: Record<string, string> = {
   pending_other_browser: 'Finish verifying in the same browser you started in.',
   cadence_unreachable: 'Cadence could not be reached. Check that it is running, then try again.',
   'cadence:subject_not_linked': 'Your Cadence connection was removed. Sign in again; you can reconnect under Security.',
+  practice_wrong_credentials: 'That email or password is not right for this account. Nothing was sent to Cadence.',
+  practice_no_typing: 'Cadence could not be reached, so that one was not saved. Try again.',
+  'cadence:practice_closed': 'Cadence is no longer taking practice sign-ins for this connection.',
+  'cadence:setup_incomplete': 'Finish setting up Cadence on the Cadence site first, then come back.',
+  'cadence:evidence_already_used': 'That typing was already sent. Type it once more.',
+}
+
+/** What Cadence said about one practice sign-in. */
+export interface Practice {
+  accepted?: boolean
+  reason?: 'did_not_match' | 'not_sign_in_length' | string | null
+  samples: number
+  needed: number
+  most: number
+  attempts_left: number
+  open: boolean
+  complete: boolean
+  /** Whether new sign-ins are scored against these yet. */
+  compared: boolean
 }
 
 export function explain(error: unknown): string {
@@ -61,6 +80,8 @@ export interface CheckSummary {
     reject_at: number | null
     use: 'standard' | 'login' | null
     amount: number | null
+    /** Sign-ins: earlier verified sign-ins here that this one was also compared with. */
+    earlier_sign_ins?: number
   }[]
 }
 

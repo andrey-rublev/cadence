@@ -52,7 +52,9 @@ export function Verdict({ check, what }: { check: CheckSummary; what: string }) 
           {scored
             .map(
               (p) =>
-                `${p.modality === 'keys' ? `typing, ${p.amount} keys` : `clicks, ${p.amount}`}: ${p.score?.toFixed(2)} vs pass mark ${p.accept_at?.toFixed(2)}`,
+                `${p.modality === 'keys' ? `typing, ${p.amount} keys` : `clicks, ${p.amount}`}` +
+                (p.earlier_sign_ins ? `, also against ${p.earlier_sign_ins} earlier sign-ins` : '') +
+                `: ${p.score?.toFixed(2)} vs pass mark ${p.accept_at?.toFixed(2)}`,
             )
             .join('; ')}
           )

@@ -48,10 +48,12 @@ class Settings(BaseSettings):
     passive_rate_limit: int = 40  # windows accepted per session per rate window
     passive_clock_slack_ms: int = 2000
 
-    # Cadence setup on the Cadence site: click test, typing test, then a few separate sign-ins.
+    # Cadence setup on the Cadence site: click test and typing test. Sign-in typing is taught
+    # per site instead: right after connecting, the person types that site's sign-in a few times.
     setup_pointer_windows: int = 3  # 12-click samples from the click test
     setup_key_windows: int = 6  # 50-key samples from the typing test
-    setup_sign_ins: int = 3  # sign-ins with typing recorded, the first one included
+    practice_ttl_s: int = 1800  # practice sign-ins are accepted this long after connecting a site
+    practice_max_attempts: int = 8  # including ones that were turned away
 
     # Third-party sites. The demo partner is registered on start-up; its secret is a local
     # development value and must be replaced anywhere real.
@@ -70,6 +72,10 @@ class Settings(BaseSettings):
     min_login_keys: int = 12
     # From here a window is scored by the 50-key model; below it, by the login model (trained on 15-45 keys).
     long_window_keys: int = 46
+    # A sign-in is also compared with this many earlier verified sign-ins on the same site
+    # (the range the history model was measured on).
+    history_min_sign_ins: int = 3
+    history_max_sign_ins: int = 5
 
     retention_days: int = 30
     max_body_bytes: int = 4_000_000

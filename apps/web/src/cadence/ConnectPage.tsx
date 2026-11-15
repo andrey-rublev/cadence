@@ -96,7 +96,12 @@ export function ConnectPage() {
               </ul>
             </div>
           </div>
-          {!me.setup.complete && (
+          {me.setup.complete ? (
+            <p className="text-sm text-muted-foreground">
+              Next, back on {site.name}, you type your {site.name} email and password a few times so Cadence learns
+              how you sign in there.
+            </p>
+          ) : (
             <p className="rounded-lg border border-uncertain/50 bg-uncertain/8 p-4 text-sm">
               Your Cadence setup is not finished, so until it is, {site.name} will ask you to verify another way.
             </p>

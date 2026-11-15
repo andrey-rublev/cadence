@@ -8,7 +8,9 @@ through the public site key (in the browser) and the site secret (here, on the s
   and comes back to `/cadence/return`, where this server reads the check again.
 - export: the same, with action `export_customers`.
 - linking: "Protect with Cadence" sends the person to Cadence /connect; the code that comes
-  back is exchanged here for an opaque subject.
+  back is exchanged here for an opaque subject. Then the person types their Northwind sign-in
+  a few times (`/api/cadence/practice`): the password is checked here, and Cadence receives
+  only the browser's timing token, so later sign-ins are compared with exactly that typing.
 
 Run: uv run --project backend uvicorn partner_demo.main:app --port 8100
 """
@@ -145,7 +147,10 @@ def summary(check: dict) -> dict:
         "reason": check["reason"],
         "resolved_by": check["resolved_by"],
         "parts": [
-            {k: p.get(k) for k in ("modality", "outcome", "score", "accept_at", "reject_at", "use", "amount")}
+            {
+                k: p.get(k)
+                for k in ("modality", "outcome", "score", "accept_at", "reject_at", "use", "amount", "earlier_sign_ins")
+            }
             for p in check["parts"]
         ],
     }
@@ -325,6 +330,32 @@ def cadence_callback(body: CallbackBody, session: Current, db: Db) -> dict:
     user.cadence_subject, user.cadence_since = linked["subject"], time.time()
     db.commit()
     return me_view(user, web)
+
+
+def linked_subject(user: User) -> str:
+    if user.cadence_subject is None:
+        raise HTTPException(409, "cadence_not_connected")
+    return user.cadence_subject
+
+
+@app.get("/api/cadence/practice", dependencies=[api])
+def cadence_practice_status(session: Current) -> dict:
+    """How many practice sign-ins Cadence has, and whether it still takes more."""
+    user, _ = session
+    return cadence("POST", "/v1/sign-in-samples/status", {"subject": linked_subject(user)})
+
+
+@app.post("/api/cadence/practice", dependencies=[api])
+def cadence_practice(body: Credentials, session: Current) -> dict:
+    """A practice sign-in right after connecting. The password is checked here, as at sign-in;
+    only the browser's evidence token goes to Cadence, so Cadence never sees the password."""
+    user, _ = session
+    subject = linked_subject(user)
+    if body.email.strip().lower() != user.email or not check_password(body.password, user.password_hash):
+        raise HTTPException(400, "practice_wrong_credentials")
+    if body.evidence is None:
+        raise HTTPException(400, "practice_no_typing")
+    return cadence("POST", "/v1/sign-in-samples", {"subject": subject, "evidence": body.evidence})
 
 
 @app.post("/api/cadence/disconnect", dependencies=[api])

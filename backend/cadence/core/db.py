@@ -40,6 +40,11 @@ def migrate(bind: Engine) -> None:
         if columns and "setup_completed_at" not in columns:
             conn.exec_driver_sql("ALTER TABLE accounts ADD COLUMN setup_completed_at FLOAT")
 
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(site_links)")}
+        if columns and "practice_attempts" not in columns:
+            conn.exec_driver_sql("ALTER TABLE site_links ADD COLUMN practice_attempts INTEGER NOT NULL DEFAULT 0")
+            conn.exec_driver_sql("ALTER TABLE site_links ADD COLUMN practice_session_id INTEGER")
+
         # passive_windows gained participant_id and a nullable account_id. SQLite cannot alter
         # a column's nullability, so the old table is set aside and copied over after create_all.
         columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(passive_windows)")}
@@ -52,6 +57,9 @@ def migrate(bind: Engine) -> None:
             ):
                 conn.exec_driver_sql(f"DROP INDEX IF EXISTS {index}")
             conn.exec_driver_sql("ALTER TABLE passive_windows RENAME TO passive_windows_v1")
+        elif columns and "site_id" not in columns:
+            conn.exec_driver_sql("ALTER TABLE passive_windows ADD COLUMN site_id VARCHAR(32)")
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_passive_windows_site_id ON passive_windows (site_id)")
 
 
 def _copy_set_aside(bind: Engine) -> None:
