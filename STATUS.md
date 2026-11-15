@@ -1,7 +1,5 @@
 # Where we are (Sun 15 Nov, 2:30 AM; judging 1 PM)
 
-> **Latest judging guide:** [PITCH.md](PITCH.md) reviews the newer export/account/retention capabilities and gives matching three-minute video and presentation plans. The four-minute outline and test count below are historical; the November 15 review passed 96 backend tests. Password-rhythm code and a CMU report now exist, but its model artifact is not shipped on main.
-
 Quick handoff for the team. Details: [README.md](README.md) (run it, demo steps, results), [PLAN.md](PLAN.md) (research and decision log).
 
 ## The product in one paragraph
