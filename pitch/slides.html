@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence pitch deck</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+* { margin: 0; }
+html, body { background: #e9ebef; }
+.deck { display: flex; flex-direction: column; align-items: center; gap: 32px; padding: 32px 16px; }
+.frame { width: min(1920px, 100%); aspect-ratio: 16 / 9; position: relative; overflow: hidden;
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(13, 16, 23, .12); }
+.frame > section { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px;
+  overflow: hidden; transform-origin: 0 0; }
+aside { display: none; }
+p, h2 { overflow-wrap: break-word; text-wrap: pretty; }
+body.render { background: none; }
+body.render .deck { padding: 0; gap: 0; }
+body.render .frame { width: 1920px; border-radius: 0; box-shadow: none; }
+@media print {
+  @page { size: 1920px 1080px; margin: 0; }
+  html, body { background: none; }
+  .deck { padding: 0; gap: 0; }
+  .frame { width: 1920px; border-radius: 0; box-shadow: none; break-after: page; }
+  .frame > section { transform: none !important; }
+}
+</style>
+<style>
+/* Cadence deck. Same tokens as the product: ink on near-white, one blue.
+   Type: 160 / 72 / 34 / 30 / 24. Radius: 16px on every image and card. */
+:root {
+  --ink: #0d1017;
+  --paper: #f7f8fa;
+  --card: #fefefe;
+  --text: #3a4150;
+  --muted: #5a6372;
+  --rule: #e2e5ea;
+  --blue: #2f4bff;
+}
+
+body {
+  font-family: 'Geist', Arial, sans-serif;
+  color: var(--ink);
+}
+
+section {
+  box-sizing: border-box;
+  padding: 128px 128px 160px;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+h2 {
+  font-size: 72px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+/* Footer: the product's own mark, same spot on every slide. */
+.brand {
+  position: absolute;
+  left: 128px;
+  bottom: 64px;
+  width: 400px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Body row under the title: words on the left, the product on the right. */
+.row {
+  display: flex;
+  gap: 96px;
+  margin-top: 56px;
+  align-items: flex-start;
+}
+.copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.copy p {
+  font-size: 34px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.copy b { color: var(--ink); font-weight: 600; }
+.copy .item { padding-top: 28px; border-top: 2px solid var(--rule); }
+
+.shot {
+  border-radius: 16px;
+  border: 2px solid var(--rule);
+  background: var(--card);
+  box-shadow: 0 24px 56px rgba(13, 16, 23, 0.08);
+  object-fit: contain;
+}
+.caption { margin-top: 20px; font-size: 24px; color: var(--muted); }
+
+/* Demo: the one dark slide. */
+.dark {
+  background: var(--ink);
+  color: #eef0f4;
+  justify-content: center;
+  align-items: center;
+}
+.dark h1 {
+  font-size: 280px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.dark .brand { color: #eef0f4; }
+
+/* Privacy: the product's own example, then four points. */
+.keeps { margin-top: 40px; }
+.points {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px 96px;
+  margin-top: 48px;
+}
+.points p { font-size: 30px; line-height: 1.4; color: var(--text); }
+.points b { color: var(--ink); font-weight: 600; }
+.tested {
+  margin-top: auto;
+  padding-top: 28px;
+  border-top: 2px solid var(--rule);
+  font-size: 30px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.tested b { color: var(--ink); font-weight: 600; }
+
+/* Scaling: real integration code next to the number. */
+.code {
+  width: 940px;
+  box-sizing: border-box;
+  padding: 40px 44px;
+  border-radius: 16px;
+  background: var(--ink);
+  font-family: 'Geist Mono', 'Courier New', monospace;
+  font-size: 24px;
+  line-height: 1.6;
+  color: #e6e8ee;
+}
+.code p { white-space: nowrap; }
+.code .c { color: #7d8597; }
+.code .s { color: #a8b6ff; }
+.code .gap { height: 24px; }
+.lead { font-size: 30px; line-height: 1.4; color: var(--text); margin-bottom: 24px; }
+.build { width: 940px; flex: none; }
+.stat { flex: 1; display: flex; flex-direction: column; gap: 24px; padding-top: 108px; }
+.big {
+  font-size: 160px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--blue);
+}
+.stat p.note { font-size: 30px; line-height: 1.45; color: var(--text); width: 560px; }
+.next {
+  margin-top: auto;
+  padding-top: 28px;
+  border-top: 2px solid var(--rule);
+  font-size: 30px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.next b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<main class="deck">
+<div class="frame"><section id="problem">
+<h2>Passwords get stolen all the time</h2>
+<div class="row">
+<div class="copy">
+<p>Passwords leak through phishing, reuse across sites or a sticky note on a monitor, and once someone has yours the login page has no way to tell it isn’t you.</p>
+<p>AI agents can get around “secure” two-factor logins by reading the code from your email and signing in without you ever knowing.</p>
+</div>
+<img class="shot" src="images/northwind-sign-in.png" alt="Northwind CRM sign-in, password step, with the email filled in above the password field." style="width:640px; height:544px;">
+</div>
+<div class="brand"><svg aria-label="Cadence logo" width="41" height="24" viewBox="0 0 34 20"><path d="M1 15c5 0 5-11 10-11s4 9 8 9 3-4 6-4" fill="none" stroke="#0d1017" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="9" r="4" fill="#2f4bff"/></svg><p>Cadence</p></div>
+<aside>Teammate 1, about 25 seconds. Someone gets your work password and the login form lets them in, because the password is right. Two-factor codes don’t stop it either: an AI agent with access to your email can read the code and sign in for itself, and you’d never see it happen.</aside>
+</section></div>
+<div class="frame"><section id="solution">
+<h2>Cadence checks your typing and mouse</h2>
+<div class="row">
+<div class="copy">
+<p class="item"><b>Set up once.</b> Play a short clicking game and copy a few sentences on Cadence.</p>
+<p class="item"><b>Sign in like normal.</b> Cadence compares how you type and click with your profile.</p>
+<p class="item"><b>Only asked when it’s unsure.</b> If it can’t tell, you get a quick test picked from your own profile.</p>
+</div>
+<div style="display:flex; flex-direction:column; gap:24px;">
+<img class="shot" src="images/setup-excavation.png" alt="Cadence setup clicking game: a topographic dig site with a grid, where you click each piece of ore as it appears." style="width:460px; height:294px;">
+<img class="shot" src="images/quick-test.png" alt="Cadence quick test: Confirm it’s you, sign-in on Northwind CRM as maya, copy one field note." style="width:460px; height:310px;">
+</div>
+</div>
+<div class="brand"><svg aria-label="Cadence logo" width="41" height="24" viewBox="0 0 34 20"><path d="M1 15c5 0 5-11 10-11s4 9 8 9 3-4 6-4" fill="none" stroke="#0d1017" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="9" r="4" fill="#2f4bff"/></svg><p>Cadence</p></div>
+<aside>Teammate 1, about 25 seconds. The top screenshot is the clicking game from setup, which is where Cadence learns how you move the mouse. The bottom one is the quick test someone gets when Cadence isn’t sure: here, copying one field note. Mention that sites keep their own login: you just type it a few times when you connect, so Cadence learns how you sign in there.</aside>
+</section></div>
+<div class="frame"><section id="demo" class="dark">
+<h1>Demo</h1>
+<div class="brand"><svg aria-label="Cadence logo" width="41" height="24" viewBox="0 0 34 20"><path d="M1 15c5 0 5-11 10-11s4 9 8 9 3-4 6-4" fill="none" stroke="#eef0f4" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="9" r="4" fill="#5d73ff"/></svg><p>Cadence</p></div>
+<aside>Both, about 75 seconds. Switch to the browser. Northwind is a fake company we built, so say that once.
+
+1. Teammate 1 signs in to Northwind as the owner, typing normally.
+2. Teammate 2 signs in with the same email and password.
+3. Open the Cadence dashboard and show what it decided for each sign-in.
+
+Whatever Cadence decides, say what actually happened. If the owner gets the quick test, do it. If the second person gets in, say so.</aside>
+</section></div>
+<div class="frame"><section id="privacy">
+<h2>Privacy and security</h2>
+<img class="shot keeps" src="images/what-cadence-keeps.png" alt="Cadence’s own example: you type “meet at noon”, and Cadence keeps only a row of bars for when each key went down and how long it was held." style="width:1100px; height:201px;">
+<div class="points">
+<p><b>Never the letters.</b> Cadence keeps key timing and which area of the keyboard was used, and password fields send timing only.</p>
+<p><b>The website never sees it.</b> The typing goes straight to Cadence, and the site you sign in to only asks whether it looks like you.</p>
+<p><b>Checked on the server.</b> The website’s server asks Cadence for the answer, so the check can’t be skipped in the browser.</p>
+<p><b>Deleted on a timer.</b> Sign-in data is removed after 30 days, and you can delete your whole profile any time.</p>
+</div>
+<p class="tested">We tested Cadence against a Chrome extension that copies a person’s mouse and keyboard input, and it recognized that it wasn’t the right person.</p>
+<div class="brand"><svg aria-label="Cadence logo" width="41" height="24" viewBox="0 0 34 20"><path d="M1 15c5 0 5-11 10-11s4 9 8 9 3-4 6-4" fill="none" stroke="#0d1017" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="9" r="4" fill="#2f4bff"/></svg><p>Cadence</p></div>
+<aside>Teammate 2, about 30 seconds. The picture is from Cadence’s own consent screen: that row of bars is everything it keeps from “meet at noon”. End on the Chrome extension test: explain what the extension did and that Cadence caught it.</aside>
+</section></div>
+<div class="frame"><section id="scaling">
+<h2>Scaling it</h2>
+<div class="row">
+<div class="build">
+<p class="lead">Any site can add Cadence with a few lines of code, and one profile covers every site you connect.</p>
+<div class="code">
+<p class="c">// Northwind’s login page</p>
+<p>recorder = recordActivity({ root: form })</p>
+<p>{ token } = await sendEvidence(recorder, site)</p>
+<div class="gap"></div>
+<p class="c"># Northwind’s server</p>
+<p>check = cadence(<span class="s">"POST"</span>, <span class="s">"/v1/checks"</span>, {</p>
+<p>&#160;&#160;<span class="s">"subject"</span>: user.cadence_subject,</p>
+<p>&#160;&#160;<span class="s">"evidence"</span>: token, <span class="s">"action"</span>: <span class="s">"sign_in"</span>})</p>
+<p>if check[<span class="s">"resolved"</span>]: sign_in(user)</p>
+</div>
+</div>
+<div class="stat">
+<p class="big">93%</p>
+<p class="note">Given one sign-in from the real person and one from someone else, it picks the real person 93% of the time, tested on 1,000 people it had never seen.</p>
+</div>
+</div>
+<p class="next">Next we want to test real logins over weeks and devices, add passkeys as a backup and move off SQLite.</p>
+<div class="brand"><svg aria-label="Cadence logo" width="41" height="24" viewBox="0 0 34 20"><path d="M1 15c5 0 5-11 10-11s4 9 8 9 3-4 6-4" fill="none" stroke="#0d1017" stroke-width="2" stroke-linecap="round"/><circle cx="29" cy="9" r="4" fill="#2f4bff"/></svg><p>Cadence</p></div>
+<aside>Teammate 2, about 25 seconds, then “thanks” and questions.
+
+The code is the real integration, shortened: the page records typing and gets a token from Cadence, and the server asks Cadence for a decision.
+
+If asked about the number: 93% is how often it ranks the real person above someone else, not the share of logins it gets right. At the setting where it errs equally both ways, it is right about 85% of the time on one sign-in. Our own volunteers dropped from 0.91 to 0.75 when tested on a different day, which is why we say real numbers will be lower.</aside>
+</section></div>
+</main>
+<script>
+// Scale each 1920x1080 slide to the width of its frame.
+if (new URLSearchParams(location.search).has('render')) document.body.classList.add('render');
+const fit = () => document.querySelectorAll('.frame').forEach(f => {
+  f.firstElementChild.style.transform = `scale(${f.clientWidth / 1920})`;
+});
+addEventListener('resize', fit);
+fit();
+</script>
+</body>
+</html>
