@@ -4,7 +4,9 @@ Behavioural verification as a risk signal for sensitive actions. A hackathon pro
 
 Cadence learns how an enrolled account owner moves and clicks, compares later interactions with that profile, and uses the result to decide when a protected action needs stronger verification.
 
-**Status:** the full loop works: sign-in, trusted enrollment, a movement check on the protected export, and a simulated fallback, all enforced on the server. Volunteer collection is running. **No model trained on real people exists yet**, so on a fresh checkout every check answers "Not enough evidence" until `scripts/train.py` has volunteer data. [PLAN.md](PLAN.md) has the plan, the research behind it, and the live status tracker.
+> **This is the `no-game` branch:** verification from ordinary typing and pointer use, with no challenge to play. See [NO_GAME.md](NO_GAME.md). The challenge version lives on `main`.
+
+**Status (main):** the full loop works: sign-in, trusted enrollment, a movement check on the protected export, and a simulated fallback, all enforced on the server. Volunteer collection is running. **No model trained on real people exists yet**, so on a fresh checkout every check answers "Not enough evidence" until `scripts/train.py` has volunteer data. [PLAN.md](PLAN.md) has the plan, the research behind it, and the live status tracker.
 
 ## Run it
 
