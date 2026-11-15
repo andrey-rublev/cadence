@@ -3,6 +3,8 @@
 > **Teammates: start at [section 12](#12-status-tracker-live)** for what is done, what is next and who owns it. Sections 1–11 are the plan and the reasoning behind it. Update the tracker in the same commit as the work.
 >
 > Plan approved Sat Nov 14, 2:30 PM CST. Judging is Sun Nov 15, 1:00 PM. Code freeze target: Sun 11:00 AM.
+>
+> **Since Sun 1 AM, `main` is Cadence as a third-party second factor** (setup on Cadence, partner sites check sign-ins and actions, personalised step-up). The README describes it and how to run the demo; the decision log below records why. The challenge-game plan in sections 3–9 describes the earlier version.
 
 ## 1. Context
 
@@ -443,6 +445,13 @@ Lane B starts from `samples` rows: `events_z` is zlib-compressed JSON of `[t_ms,
 | Sat evening | A model trained on synthetic players loads only with `CADENCE_ALLOW_SYNTHETIC_MODEL=1` and always shows a banner | Lets the flow be developed and rehearsed without ever passing synthetic numbers off as results |
 | Sat evening | Verification rounds are never added to the profile; enrollment needs trust at issue and at submit | Unverified activity must not be able to drift the owner's baseline |
 | Sat evening | Game restyled from cartoon to a flat survey sheet; spec v1 and artwork frozen | Requested polish done before volunteers start, so every volunteer sees the same stimulus. The 18 pilot rounds predate the restyle and stay excluded as pilot data |
+| Sat night | Passive typing and pointer checks with no game, on branch `no-game` | Keyboard timing on 1,000 Aalto typists (AUC 0.964 per 50 keys) beat pointer data per second of activity; the game added friction |
+| Sun 1 AM | `main` becomes Cadence as a third-party second factor (no-game merged in; game history kept) | The product is a service other sites plug in: setup happens on Cadence, partners only send evidence from their own sign-in and actions |
+| Sun 1 AM | Setup is a click test, a copy-typing test and repeat sign-ins; partners never ask for extra activity | Most of the profile is collected once; a sign-in's own typing (15–45 keys) is scored by a separate login model (AUC 0.932, same-sitting caveat) |
+| Sun 1 AM | Partner browser sends evidence straight to Cadence for an opaque token; partner servers decide with a secret | The partner never holds behaviour data; tokens are single use and bound to the site |
+| Sun 1 AM | Unsure checks get a personalised test: the input whose own profile samples sit furthest above the pass mark | Asks each person for the evidence most likely to settle it for them, with the demo authenticator always available |
+| Sun 1 AM | Only verified checks are learned, and never a check that looked like someone else, even after the person confirms | Profile contamination measurably hurts later checks (CS2 paper, section 2.1) |
+| Sun 1 AM | The three passive models are committed under `artifacts/models/` | A fresh clone must work without the datasets; about 120 KB each, trained on research datasets with attribution |
 
 ## 13. Path to a real product (for the pitch and README)
 - Position as a step-up risk signal beside device and network signals, in the category of BioCatch and BehavioSec. The business metric is how many genuine sessions avoid a step-up prompt at a fixed impostor pass rate.
