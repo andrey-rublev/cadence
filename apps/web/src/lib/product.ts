@@ -35,7 +35,13 @@ export interface Me {
 
 export type Outcome = 'CONSISTENT' | 'UNCERTAIN' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE'
 
-export type PassiveReason = 'model_missing' | 'not_enrolled' | 'no_interaction_yet' | 'window_not_measurable' | 'no_evidence'
+export type PassiveReason =
+  | 'model_missing'
+  | 'not_enrolled'
+  | 'no_interaction_yet'
+  | 'window_not_measurable'
+  | 'no_evidence'
+  | 'learning_session'
 
 /** One input's verdict inside a passive check. Score is a similarity, not a probability. */
 export interface PassivePart {

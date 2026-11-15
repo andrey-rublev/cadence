@@ -1,4 +1,4 @@
-import { CircleDashed, Download, Hourglass, RotateCw, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { CircleDashed, Download, Hourglass, LogOut, RotateCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -35,6 +35,7 @@ interface ExportFlowProps {
   onClose: () => void
   onMe: (me: Me) => void
   onSetUpProfile: () => void
+  onSignOut: () => void
 }
 
 /** Outcome banner. Icon, wording and colour all differ, so no state relies on colour alone. */
@@ -97,7 +98,7 @@ function Parts({ decision, me }: { decision: PassiveDecision; me: Me }) {
  * game. Every decision is the server's; this dialog reports it and offers the next step.
  * Closing or tampering with it cannot produce an export, which needs a server-side grant.
  */
-export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProps) {
+export function ExportFlow({ me, onClose, onMe, onSetUpProfile, onSignOut }: ExportFlowProps) {
   const [step, setStep] = useState<Step>({ name: 'checking' })
   const [opened, setOpened] = useState<Opened | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -178,8 +179,10 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProp
             <Outcome
               tone="border-dashed border-input bg-muted/60"
               icon={<CircleDashed className={ICON} aria-hidden="true" />}
-              title="Not enough evidence yet"
+              title={decision.reason === 'learning_session' ? 'This sign-in is teaching your profile' : 'Not enough evidence yet'}
             >
+              {decision.reason === 'learning_session' &&
+                'You verified with the demo authenticator in this sign-in, so everything you do here for 15 minutes is teaching your profile. Checking this sign-in against a profile it just taught would prove nothing. Sign out and back in (without the authenticator), work for a minute, then export to see a real check. This is not a mismatch.'}
               {decision.reason === 'no_interaction_yet' &&
                 'There is not enough recent activity from this sign-in to compare. Keep working for a minute (search, write a note, click around), then check again. This is not a mismatch.'}
               {decision.reason === 'not_enrolled' &&
@@ -190,10 +193,15 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProp
                 'Recent activity could not be measured well enough to compare. This is not a mismatch.'}
             </Outcome>
             {decision.reason === 'no_interaction_yet' && <NextSample />}
-            <Parts decision={decision} me={me} />
+            {decision.reason !== 'learning_session' && <Parts decision={decision} me={me} />}
             {actions(
               decision.reason === 'no_interaction_yet' ? (
                 checkAgain
+              ) : decision.reason === 'learning_session' ? (
+                <Button size="lg" onClick={onSignOut} className="h-11 px-5 text-base">
+                  <LogOut aria-hidden="true" />
+                  Sign out to test a check
+                </Button>
               ) : decision.reason === 'not_enrolled' ? (
                 <Button size="lg" onClick={onSetUpProfile} className="h-11 px-5 text-base">
                   Set up the profile

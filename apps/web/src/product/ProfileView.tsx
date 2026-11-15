@@ -10,7 +10,7 @@ import { MODALITY_LABEL, type Me, type Modality } from '@/lib/product'
 
 import { Card, HistoryCard, PassiveModelsCard } from './EvidenceCards'
 import { FallbackPanel } from './FallbackPanel'
-import { Meter, NextSample, usePassive } from './PassiveCapture'
+import { Meter, NextSample } from './PassiveCapture'
 
 const PROMPT =
   'Describe your last working day: what you did first, who you talked to, and what is still on your list.'
@@ -31,7 +31,7 @@ function ModalityProgress({ modality, me }: { modality: Modality; me: Me }) {
 
 /** Learning happens while the person works. A trusted verification opens a 15-minute window. */
 function Learning({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
-  const { last } = usePassive()
+  const ready = me.passive.keys.sufficient || me.passive.pointer.sufficient
   const [text, setText] = useState('')
 
   if (!me.trusted) {
@@ -67,9 +67,10 @@ function Learning({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         </p>
       </div>
       <NextSample />
-      {last?.purpose === 'enroll' && (
-        <p className="text-sm text-consistent" role="status">
-          Added a {last.modality === 'keys' ? 'typing' : 'pointer'} sample to your profile.
+      {ready && (
+        <p className="text-sm text-muted-foreground">
+          This sign-in is teaching the profile, so exports in it are not checked against it. To see a check, sign out
+          and sign back in without the demo authenticator, work for a minute, then export.
         </p>
       )}
     </div>

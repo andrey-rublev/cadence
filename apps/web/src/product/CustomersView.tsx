@@ -15,9 +15,10 @@ interface CustomersViewProps {
   me: Me
   onMe: (me: Me) => void
   onSetUpProfile: () => void
+  onSignOut: () => void
 }
 
-export function CustomersView({ me, onMe, onSetUpProfile }: CustomersViewProps) {
+export function CustomersView({ me, onMe, onSetUpProfile, onSignOut }: CustomersViewProps) {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [exporting, setExporting] = useState(false)
   const [query, setQuery] = useState('')
@@ -145,6 +146,7 @@ export function CustomersView({ me, onMe, onSetUpProfile }: CustomersViewProps) 
             setExporting(false)
             onSetUpProfile()
           }}
+          onSignOut={onSignOut}
         />
       )}
     </div>

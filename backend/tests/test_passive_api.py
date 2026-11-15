@@ -125,6 +125,17 @@ def test_malformed_and_thin_windows_are_rejected(keys_model):
     assert client.post("/api/passive", json={**body(backwards), "duration_ms": backwards[-1][0]}, headers=HEADERS).status_code == 422
 
 
+def test_a_learning_sign_in_is_not_checked_against_itself(keys_model):
+    rng = np.random.default_rng(4)
+    client = consented_client()
+    enroll_two_sign_ins(client, rng)  # still inside the second, trusted sign-in
+    client.post("/api/passive", json=body(typing(OWNER, rng)), headers=HEADERS)
+    decision = authorize(client)
+    assert decision["grant"] is None
+    assert decision["decision"]["outcome"] == "INSUFFICIENT_EVIDENCE"
+    assert decision["decision"]["reason"] == "learning_session"
+
+
 def test_owner_is_released_without_a_challenge_and_a_stranger_is_held(keys_model):
     rng = np.random.default_rng(3)
     client = consented_client()

@@ -27,6 +27,7 @@ from .core.models import PassiveWindow, UserSession, now
 from .features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA
 from .features.strokes import K_FEATURE_NAMES, K_SCHEMA
 from .policy import CONSISTENT, INCONSISTENT, INSUFFICIENT, UNCERTAIN
+from .product import is_trusted
 from .verifier.artifact import Model, load_active
 
 MODALITIES = {
@@ -136,6 +137,10 @@ def _decide_part(db: Session, account_id: int, session: UserSession, modality: s
 
 def decide_passive(db: Session, account_id: int, session: UserSession) -> PassiveDecision:
     parts = [_decide_part(db, account_id, session, modality) for modality in MODALITIES]
+    if is_trusted(session):
+        # A learning sign-in: its windows go into the profile, so there is no evidence to
+        # compare, and comparing a sitting with itself would flatter the score anyway.
+        return PassiveDecision(INSUFFICIENT, reason="learning_session", parts=parts)
     outcomes = {p.outcome for p in parts}
     if INCONSISTENT in outcomes:
         return PassiveDecision(INCONSISTENT, parts=parts)

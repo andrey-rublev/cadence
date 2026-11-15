@@ -77,7 +77,7 @@ export function ProductApp() {
         <main className="grid content-start gap-6">
           {me === null && <SignIn onSignedIn={setMe} />}
           {me && view === 'customers' && (
-            <CustomersView me={me} onMe={setMe} onSetUpProfile={() => setView('profile')} />
+            <CustomersView me={me} onMe={setMe} onSetUpProfile={() => setView('profile')} onSignOut={signOut} />
           )}
           {me && view === 'profile' && <ProfileView me={me} onMe={setMe} />}
         </main>

@@ -1,4 +1,4 @@
-import { startPassive, type PassiveProgress, type PassiveWindow } from '@cadence/sdk'
+import { CadenceApiError, startPassive, type PassiveProgress, type PassiveWindow } from '@cadence/sdk'
 import { Pause, Play } from 'lucide-react'
 import {
   createContext,
@@ -26,7 +26,23 @@ interface PassiveState {
   /** Input collected towards the next window of each kind. */
   progress: PassiveProgress
   /** What the server did with the last window sent. */
-  last: { modality: Modality; purpose: 'enroll' | 'evidence' } | null
+  last: LastSample | null
+}
+
+export interface LastSample {
+  modality: Modality
+  /** enroll: added to the profile; evidence: kept for checks in this sign-in; rejected: not counted. */
+  purpose: 'enroll' | 'evidence' | 'rejected'
+  /** Why a rejected sample was not counted (server error code). */
+  code?: string
+}
+
+const NOT_COUNTED: Record<string, string> = {
+  too_little_movement: 'too few clear clicks in it',
+  too_little_typing: 'too few keys in it',
+  window_already_used: 'it was already counted',
+  too_many_windows: 'activity arrived faster than expected',
+  client_clock_ahead_of_server: 'its timing did not match the server clock',
 }
 
 const PassiveContext = createContext<PassiveState>({
@@ -72,8 +88,13 @@ export function PassiveProvider({ me, setMe, root, children }: ProviderProps) {
             setLast({ modality: saved.modality, purpose: saved.purpose })
             setMe((current) => (current ? { ...current, passive: saved.passive } : current))
           },
-          // A thin or duplicate window is simply not counted; capture carries on.
-          () => undefined,
+          // A thin or duplicate window is not counted; capture carries on, and the UI says so.
+          (error: unknown) =>
+            setLast({
+              modality: window.modality,
+              purpose: 'rejected',
+              code: error instanceof CadenceApiError ? error.code : undefined,
+            }),
         )
     const capture = startPassive({
       root: root.current,
@@ -110,14 +131,31 @@ export function Meter({ label, value, total }: { label: string; value: number; t
   )
 }
 
+/** What happened to the last sample, in words: a full meter resets, and this says where it went. */
+export function lastSampleText(last: LastSample): string {
+  const kind = last.modality === 'keys' ? 'typing' : 'pointer'
+  if (last.purpose === 'enroll') return `Last ${kind} sample: added to your profile.`
+  if (last.purpose === 'evidence') return `Last ${kind} sample: saved for checks in this sign-in.`
+  const why = (last.code && NOT_COUNTED[last.code]) ?? 'the server turned it down'
+  return `Last ${kind} sample: not counted (${why}). Keep going; the next one may count.`
+}
+
 /** Live count towards the next sample of each kind, so "keep working" has a visible end. */
 export function NextSample() {
-  const { running, progress } = usePassive()
+  const { running, progress, last } = usePassive()
   if (!running) return <p className="text-sm text-muted-foreground">Capture is paused. Resume it in the header.</p>
   return (
-    <div className="grid gap-x-8 gap-y-3 rounded-lg border border-rule p-4 sm:grid-cols-2" aria-live="off">
-      <Meter label="Keys towards the next typing sample" value={progress.keys} total={KEYS_PER_WINDOW} />
-      <Meter label="Clicks towards the next pointer sample" value={progress.strokes} total={STROKES_PER_WINDOW} />
+    <div className="grid gap-3 rounded-lg border border-rule p-4">
+      <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2" aria-live="off">
+        <Meter label="Keys towards the next typing sample" value={progress.keys} total={KEYS_PER_WINDOW} />
+        <Meter label="Clicks towards the next pointer sample" value={progress.strokes} total={STROKES_PER_WINDOW} />
+      </div>
+      <p
+        role="status"
+        className={`text-sm ${last?.purpose === 'rejected' ? 'text-muted-foreground' : last ? 'text-consistent' : 'text-muted-foreground'}`}
+      >
+        {last ? lastSampleText(last) : 'A full meter sends a sample and starts again from zero.'}
+      </p>
     </div>
   )
 }

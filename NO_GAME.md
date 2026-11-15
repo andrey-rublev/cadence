@@ -14,6 +14,8 @@ Everything in [PLAN.md](PLAN.md) about honesty still applies: scores are similar
    - During a trusted session (within 15 minutes of the demo authenticator) a window builds the **profile**.
    - Otherwise it is **evidence** for the current session, kept for 10 minutes.
 4. **Decision (`POST /api/actions/export_customers/authorize`).** Each input with a model and a sufficient profile (6 windows from 2 sign-ins) is scored on its latest 3 evidence windows against its own thresholds. Any input that looks inconsistent holds the export; otherwise a consistent input releases it at once (a single-use, 2-minute grant); otherwise it is uncertain ("keep working, then check again"). No usable evidence is "not enough evidence", never a mismatch. The demo authenticator is always available.
+   - A sign-in that is still learning (within 15 minutes of the demo authenticator) is never checked: its windows went into the profile, and comparing a sitting with itself would flatter the score. The export dialog says so and offers to sign out; **to see a real check, sign in again without the authenticator.**
+   - Under the live meters, the app says what happened to the last sample: added to the profile, saved as evidence, or not counted (and why). A full meter always resets to zero.
 5. **The challenge still exists** behind `?method=challenge`, so the old enforcement tests keep running.
 
 ## Models (trained on public data)
