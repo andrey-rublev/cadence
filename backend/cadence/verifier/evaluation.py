@@ -231,7 +231,8 @@ def evaluate(
             return out
 
         point = stats(ones)
-        samples = {k: np.array([s[k] for s in (stats(c) for c in draws)]) for k in point}
+        per_draw = [stats(c) for c in draws]
+        samples = {k: np.array([s[k] for s in per_draw]) for k in point}
         auc_draws[model_id] = samples["auc_one"]
 
         genuine_attempts = [a for a in attempts if a.genuine]
