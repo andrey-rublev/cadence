@@ -79,17 +79,22 @@ def _estimator(kind: Kind, seed: int):
     )
 
 
-def fit_pairwise(rounds: list[Round], kind: Kind, seed: int = 0) -> Pairwise:
-    """Fit on training participants' rounds only."""
+def fit_pairwise(rounds: list[Round], kind: Kind, seed: int = 0, negatives_per_template: int | None = None) -> Pairwise:
+    """Fit on training participants' rounds only. With many people, `negatives_per_template`
+    caps the impostor rounds drawn per enrollment template (a seeded random sample)."""
     scaler = Baseline.fit(np.array([r.vector for r in rounds]))
     people = sessions_by_person(rounds)
     model = Pairwise(scaler, None, kind)
+    rng = np.random.default_rng(seed)
     features, labels = [], []
     for person, sessions in people.items():
+        others_all = [r.vector for other, s_list in people.items() if other != person for s in s_list for r in s]
         for index, session in enumerate(sessions):
             enrollment = np.array([r.vector for r in session])
             same = [r.vector for other_index, s in enumerate(sessions) if other_index != index for r in s]
-            others = [r.vector for other, s_list in people.items() if other != person for s in s_list for r in s]
+            others = others_all
+            if negatives_per_template is not None and len(others) > negatives_per_template:
+                others = [others[i] for i in rng.choice(len(others), negatives_per_template, replace=False)]
             for vectors, label in ((same, 1), (others, 0)):
                 if vectors:
                     features.append(model._gaps(enrollment, np.array(vectors)))

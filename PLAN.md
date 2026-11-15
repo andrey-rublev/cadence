@@ -286,7 +286,8 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [ ] B — Synthetic fixture files for the training pipeline (`scripts/make_synthetic.py`)
 - [ ] B — Resampling, stroke segmentation, kinematic features (block K) in `backend/cadence/features/`
 - [x] B — Baseline B0 and evaluation harness (`verifier/evaluation.py`): participant-held-out scores (leave-pair-out up to 16 people, 5 grouped folds above), nested thresholds, the product policy replayed on held-out attempts, 95% participant-bootstrap intervals, same-station vs other-station breakdown
-- [ ] B — SapiMouse import script
+- [x] B — SapiMouse import and experiments (`scripts/sapimouse.py`, reads the zip in `data/external/sapimouse/` directly; download it from the dataset page)
+- [x] B — Geometry-free stroke features, block K (`features/strokes.py`), shared by SapiMouse, volunteers and future passive capture
 - [ ] A+B — **Pilot: both builders run one collection session on each laptop with a real mouse and a trackpad; fix anything odd; then freeze spec v1**
 - [ ] A+B — Delete-by-username script for volunteer recordings (promised on the consent screen), and the 30-day purge
 - [ ] B — Export script: merge laptops by username, flag near-duplicate usernames, report the gap between each person's sessions
@@ -304,7 +305,7 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [x] A — End-to-end browser run in a sandbox: an owner enrolled over two sign-ins was accepted and exported; a different movement style was held; a direct API export without a grant returned 403; the fallback released it
 - [ ] B — Recruit and run 20+ volunteers (sessions A and B; ≥5 with session C on a second device). **In progress**
 - [x] B — **Real model trained** on both laptops (Sat 6:20 PM, 10 volunteers, 8 with a session on each laptop, 107 rounds). Retrain whenever new snapshots land in `data/collected/`; the numbers below change with every person added. Until a model is activated on a machine, every check there answers "Not enough evidence"
-- [~] B — Pairwise verifiers on volunteers, compared against B0 (`verifier/pairwise.py`): M1 logistic regression and M2 gradient boosting on per-feature gaps, cross-session positives only. Still to do: the SapiMouse-pretrained kinematic variant
+- [x] B — Pairwise verifiers on volunteers, compared against B0 (`verifier/pairwise.py`): M1 logistic regression and M2 gradient boosting on per-feature gaps, cross-session positives only. SapiMouse-pretrained block-K variants were tested too and do not transfer (see results below)
 - [ ] A — Retention purge job (the 30-day limit is stated in the UI but nothing deletes old rows yet)
 - [ ] A — Capture SDK passive in-app windows with a start/stop control (`createCadence`)
 
@@ -330,6 +331,23 @@ All held-out, one probe round, AUC with 95% ranges. Report: `artifacts/reports/e
 | How much enrollment is enough? | 1 round (~18 s) 0.75–0.78; 3 rounds 0.75–0.79; 6 rounds 0.80–0.85 | More enrollment helps a little; one session of 6 rounds is the best measured |
 | Does a second session matter? | Probe from the same sitting: B0 0.91 (EER 13%). Probe from the second session: B0 0.75 (EER 32%) | Testing inside one sitting overstates accuracy badly. Every second session here was also on another laptop, so this mixes "another day" with "another device" |
 | Can a few seconds of movement work (passive login)? | 2 clicks (~1.5 s) 0.70; 4 clicks (~3 s) 0.67; 8 clicks (~6 s) 0.78; clicks and drags (~11 s) 0.83; full round (~18 s) 0.80 | The movement on a login page alone is weak (EER ~37%). It can only be a prior that accumulates across logins and in-app use, with the challenge as step-up |
+
+#### SapiMouse, 120 people (`scripts/sapimouse.py`, Sat 8:00 PM)
+Free-form mouse use, a 3-minute enrollment and a 1-minute probe session per person, geometry-free stroke features (block K, `features/strokes.py`), 5 participant-grouped folds, AUC with 95% ranges. Report: `artifacts/reports/sapimouse.json`. Every person used their own computer and both sessions were on the same day, which flatters these numbers.
+
+| Training people | 5 | 10 | 20 | 40 | 96 |
+|---|---|---|---|---|---|
+| B0-K distance | 0.69 | 0.68 | 0.69 | 0.69 | 0.69 |
+| M2-K pairwise boosting | 0.72 | 0.75 | 0.79 | 0.81 | 0.82 (0.80–0.84) |
+
+| Movement per check | 3 strokes (~4 s) | 6 strokes (~9 s) | 12 strokes (~17 s) | 24 strokes (~35 s) |
+|---|---|---|---|---|
+| B0-K | 0.60 | 0.63 | 0.69 | 0.75 |
+| M2-K | 0.74 | 0.78 | 0.82 | 0.87 |
+
+- **More people help the learned model, with diminishing returns:** most of the gain comes by 20–40 training people; 40 to 96 adds 0.01. The distance baseline never improves with more people. This matches the volunteer curve, so recruiting 20+ is what makes M2 worth switching to.
+- **More movement per check helps steadily:** about +0.04 AUC each time the movement doubles. Three 12-stroke windows (~50 s) reach 0.88.
+- **SapiMouse does not transfer to the challenge:** models trained on SapiMouse alone score the volunteers at AUC 0.70–0.75, no better than block K trained on the volunteers (0.72–0.77), and below the challenge's geometry features (B0 0.80, M2 0.85). Free-form use and the challenge are different tasks. SapiMouse is useful as a scale estimate and as the basis for passive in-app checks, not as training data for the challenge model.
 
 Not measurable yet: whether enrolling on two sessions beats one (needs a third session to probe with), and same-laptop genuine accuracy. **Ask about 5 volunteers for a session C on either laptop**; it answers both.
 - [x] A — Replay, expiry, cross-session, grant-reuse and rate-limit tests (36 backend tests)
