@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from cadence.core.config import settings
@@ -6,6 +7,12 @@ from cadence.main import app
 from .conftest import HEADERS, backdate_challenge, play, play_round, start_collect
 
 META = {"scale": 1, "dpr": 1, "pointer_type": "mouse"}
+
+
+@pytest.fixture(autouse=True)
+def challenge_collection(monkeypatch):
+    """These tests cover main's game collection; the no-game branch defaults to typing."""
+    monkeypatch.setattr(settings, "collect_mode", "challenge")
 
 
 def test_consent_is_required(client):

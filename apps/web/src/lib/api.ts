@@ -8,6 +8,9 @@ export interface CollectStatus {
   warmup_done: boolean
   rounds_done: number
   rounds_total: number
+  mode: 'typing' | 'challenge'
+  typing_done: number
+  typing_total: number
   complete: boolean
 }
 

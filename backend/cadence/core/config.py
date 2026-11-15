@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     challenge_rate_collect: int = 24
     challenge_rate_verify: int = 5
 
+    # What a collection session records. The no-game branch collects typing; "challenge" is main's game.
+    collect_mode: str = "typing"
+    collect_typing_windows: int = 6  # 50-key typing samples per collection session (about 300 keys)
     collect_rounds: int = 6  # scored rounds per collection session, after one warm-up
     split_salt: str = "cadence-split-v1"
 

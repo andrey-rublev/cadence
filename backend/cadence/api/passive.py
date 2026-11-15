@@ -1,4 +1,8 @@
-"""Passive windows: ordinary pointer and keyboard use, sent by the SDK while a consenting user works."""
+"""Passive windows: ordinary pointer and keyboard use, sent by the SDK while a consenting person works.
+
+Two routes share one ingest path: app users (evidence or enrollment) and collection-mode
+volunteers (recordings for evaluation and calibration).
+"""
 
 import hashlib
 import json
@@ -9,10 +13,12 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
+from ..collect import collect_status
 from ..core.config import settings
 from ..core.db import Db
-from ..core.models import PassiveWindow, now
+from ..core.models import PassiveWindow, UserSession, now
 from ..core.security import CurrentSession, require_client_header
 from ..features.keys import KEY_SCHEMA, MODIFIER, presses_from_events
 from ..features.keys import window_vector as key_vector
@@ -57,13 +63,18 @@ def _validate(body: PassiveBody) -> None:
         raise HTTPException(422, "duration_mismatch")
 
 
-@router.post("/passive")
-def submit_window(body: PassiveBody, account: CurrentAccount, session: CurrentSession, db: Db) -> dict:
-    """Store one window as enrollment (trusted session) or as evidence for this session."""
-    if account.consent_at is None:
-        raise HTTPException(403, "consent_required")
+def ingest(
+    db: Session,
+    body: PassiveBody,
+    session: UserSession,
+    *,
+    purpose: str,
+    keep_raw: bool,
+    account_id: int | None = None,
+    participant_id: int | None = None,
+) -> PassiveWindow:
+    """Validate a window, extract its features and add it to the session. Caller commits."""
     _validate(body)
-
     recent = db.scalar(
         select(func.count()).where(
             PassiveWindow.session_id == session.id,
@@ -74,7 +85,7 @@ def submit_window(body: PassiveBody, account: CurrentAccount, session: CurrentSe
         raise HTTPException(429, "too_many_windows")
 
     # A window cannot have taken longer than the server has seen since the previous one
-    # (or since sign-in). Stops a recording made elsewhere being sent in a burst.
+    # (or since the session opened). Stops a recording made elsewhere being sent in a burst.
     previous = db.scalar(select(func.max(PassiveWindow.captured_at)).where(PassiveWindow.session_id == session.id))
     elapsed_ms = (now() - (previous or session.created_at)) * 1000
     if body.duration_ms > elapsed_ms + settings.passive_clock_slack_ms:
@@ -82,7 +93,8 @@ def submit_window(body: PassiveBody, account: CurrentAccount, session: CurrentSe
 
     canonical = json.dumps([body.modality, body.events], separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode()).hexdigest()
-    if db.scalar(select(PassiveWindow.id).where(PassiveWindow.account_id == account.id, PassiveWindow.digest == digest)):
+    owner = PassiveWindow.account_id == account_id if account_id is not None else PassiveWindow.participant_id == participant_id
+    if db.scalar(select(PassiveWindow.id).where(owner, PassiveWindow.digest == digest)):
         raise HTTPException(409, "window_already_used")
 
     if body.modality == "pointer":
@@ -96,19 +108,45 @@ def submit_window(body: PassiveBody, account: CurrentAccount, session: CurrentSe
             raise HTTPException(422, "too_little_typing")
         vector, schema = key_vector(presses), KEY_SCHEMA
 
-    purpose = "enroll" if is_trusted(session) else "evidence"
-    db.add(
-        PassiveWindow(
-            session_id=session.id,
-            account_id=account.id,
-            modality=body.modality,
-            purpose=purpose,
-            feature_schema=schema,
-            values_json=json.dumps([None if not math.isfinite(v) else v for v in vector.tolist()]),
-            digest=digest,
-            events_z=zlib.compress(canonical.encode()) if account.keep_raw else None,
-            duration_ms=body.duration_ms,
-        )
+    window = PassiveWindow(
+        session_id=session.id,
+        account_id=account_id,
+        participant_id=participant_id,
+        modality=body.modality,
+        purpose=purpose,
+        feature_schema=schema,
+        values_json=json.dumps([None if not math.isfinite(v) else v for v in vector.tolist()]),
+        digest=digest,
+        events_z=zlib.compress(canonical.encode()) if keep_raw else None,
+        duration_ms=body.duration_ms,
     )
+    db.add(window)
+    return window
+
+
+@router.post("/passive")
+def submit_window(body: PassiveBody, account: CurrentAccount, session: CurrentSession, db: Db) -> dict:
+    """Store one window as enrollment (trusted session) or as evidence for this session."""
+    if account.consent_at is None:
+        raise HTTPException(403, "consent_required")
+    purpose = "enroll" if is_trusted(session) else "evidence"
+    ingest(db, body, session, purpose=purpose, keep_raw=account.keep_raw, account_id=account.id)
     db.commit()
     return {"purpose": purpose, "modality": body.modality, "passive": passive_profile(db, account.id, session)}
+
+
+@router.post("/collect/passive")
+def submit_collection_window(body: PassiveBody, session: CurrentSession, db: Db) -> dict:
+    """A volunteer's typing (or free pointer use) in collection mode. Raw timing is kept: it
+    holds zones and times only, and volunteers consented to recordings for training and testing."""
+    if session.kind != "collect" or session.participant_id is None:
+        raise HTTPException(403, "no_active_session")
+    if collect_status(db, session).complete:
+        raise HTTPException(409, "session_complete")
+    ingest(db, body, session, purpose="collect", keep_raw=True, participant_id=session.participant_id)
+    db.flush()
+    status = collect_status(db, session)
+    if status.complete and session.completed_at is None:
+        session.completed_at = now()
+    db.commit()
+    return {"accepted": True, "collect": status.model_dump()}

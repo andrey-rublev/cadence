@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .api.schemas import CollectStatus
 from .core.config import settings
-from .core.models import Participant, Sample, UserSession
+from .core.models import Participant, PassiveWindow, Sample, UserSession
 
 SPLITS = ("train", "train", "train", "validation", "test")
 USERNAME = re.compile(r"[a-z0-9][a-z0-9._-]{2,23}")
@@ -40,11 +40,22 @@ def collect_status(db: Session, session: UserSession) -> CollectStatus:
     )
     participant = db.get(Participant, session.participant_id)
     done = counts.get(False, 0)
+    typing = db.scalar(
+        select(func.count()).where(
+            PassiveWindow.session_id == session.id,
+            PassiveWindow.modality == "keys",
+            PassiveWindow.purpose == "collect",
+        )
+    )
+    typing_mode = settings.collect_mode == "typing"
     return CollectStatus(
         username=participant.username,
         label=session.label or "",
         warmup_done=counts.get(True, 0) > 0,
         rounds_done=done,
         rounds_total=settings.collect_rounds,
-        complete=done >= settings.collect_rounds,
+        mode=settings.collect_mode,
+        typing_done=typing,
+        typing_total=settings.collect_typing_windows,
+        complete=(typing >= settings.collect_typing_windows) if typing_mode else done >= settings.collect_rounds,
     )

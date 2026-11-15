@@ -133,9 +133,12 @@ class PassiveWindow(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    account_id: Mapped[int] = mapped_column(index=True)
+    # Exactly one of these is set: an app account, or a collection-mode volunteer.
+    account_id: Mapped[int | None] = mapped_column(index=True)
+    participant_id: Mapped[int | None] = mapped_column(ForeignKey("participants.id"), index=True)
     modality: Mapped[str] = mapped_column(String(8))  # pointer | keys
-    purpose: Mapped[str] = mapped_column(String(10))  # enroll (during a trusted session) | evidence
+    # enroll (during a trusted session) | evidence | collect (a volunteer's recording)
+    purpose: Mapped[str] = mapped_column(String(10))
     feature_schema: Mapped[int]
     values_json: Mapped[str]
     # SHA-256 of the submitted events: an identical window is never accepted twice.
@@ -147,6 +150,7 @@ class PassiveWindow(Base):
     __table_args__ = (
         Index("ix_passive_account_modality", "account_id", "modality", "purpose"),
         Index("ux_passive_account_digest", "account_id", "digest", unique=True),
+        Index("ux_passive_participant_digest", "participant_id", "digest", unique=True),
     )
 
 

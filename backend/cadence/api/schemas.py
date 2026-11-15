@@ -7,7 +7,7 @@ from ..challenges.replay import MAX_EVENTS
 # One pointer sample: [t_ms, x, y, kind, buttons]; kind 0 = move, 1 = down, 2 = up.
 Event = tuple[float, float, float, int, int]
 
-DeclaredDevice = Literal["mouse", "trackpad", "other"]
+DeclaredDevice = Literal["mouse", "trackpad", "laptop-keys", "external-keys", "other"]
 
 
 class SubmissionMeta(BaseModel):
@@ -45,5 +45,8 @@ class CollectStatus(BaseModel):
     warmup_done: bool
     rounds_done: int
     rounds_total: int
+    mode: str = "challenge"  # typing | challenge
+    typing_done: int = 0
+    typing_total: int = 0
     complete: bool
 

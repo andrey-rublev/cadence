@@ -67,9 +67,23 @@ With the product's policy (up to three samples, thresholds chosen on held-out ty
 - Behaviour profile: progress per input (samples and sign-ins), a typing practice box, live counts towards the next sample, consent and deletion, recent checks, and the model card with held-out comparisons and dataset credits.
 - Export: decided instantly. Released, "not sure yet / keep working and check again", "doesn't match, on hold", or "not enough evidence", each with the demo authenticator as the other way through.
 
+## Collecting typing from volunteers
+
+On this branch `/collect` is a typing session, not the game (`collect_mode = "typing"`; `"challenge"` brings the game back). After the usual consent screen, a volunteer answers everyday prompts in their own words for about three minutes. Six 50-key samples complete a session. Only key timing and zones are stored, never the text, under the volunteer's username like the game rounds were.
+
+**The point is a second session on a different day** (the completion screen asks for it), because same-sitting accuracy is what the Aalto numbers overstate. Another laptop or keyboard helps too.
+
+Share data exactly as on main: stop the API, copy `backend/cadence.db` to `data/collected/<station>.db`, commit. Then:
+
+```bash
+cd backend && uv run python scripts/typing_eval.py --db ../data/collected/<station>.db
+```
+
+compares the Aalto-trained keyboard model, used as it is, with B0 and M2 trained on the volunteers, all on held-out cross-session scores. With `--calibrate` it keeps the Aalto model but re-chooses its thresholds on the volunteers' cross-session scores and activates that as a new version. It refuses with fewer than 5 volunteers who have two sessions. This is the step that turns "thresholds from a public dataset" into "thresholds measured on our own users".
+
 ## Known gaps
 
-- No in-app calibration data. The next step is a typing session in collection mode so volunteers provide sessions on more than one day.
+- Calibration needs volunteers with typing sessions on two different days; until then the thresholds come from Aalto.
 - Passive evidence is produced by the client, so an attacker who controls the browser can script it. It is a risk signal; fallback stays mandatory.
 - Phones and tablets: on-screen keyboards hide key positions and touch has no hover path, so passive checks mostly fall back to the authenticator there.
 - Users who paste, autofill or never type in the session produce no keyboard evidence.
