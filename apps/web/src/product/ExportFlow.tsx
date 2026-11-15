@@ -16,7 +16,21 @@ import {
 
 import { DecisionMeter } from './DecisionMeter'
 import { FallbackPanel } from './FallbackPanel'
-import { NextSample } from './PassiveCapture'
+import { NextSample, PracticeBox, usePassive } from './PassiveCapture'
+
+/** Somewhere to produce evidence without leaving the dialog. The check re-runs on its own. */
+function KeepWorking() {
+  return (
+    <div className="grid gap-3">
+      <PracticeBox id="export-practice" label="Type a couple of sentences to speed this up" rows={3} />
+      <NextSample />
+      <p className="text-sm text-muted-foreground">
+        The check runs again by itself when the next sample is saved. You can also close this, keep working, and export
+        again.
+      </p>
+    </div>
+  )
+}
 
 type Step =
   | { name: 'checking' }
@@ -110,8 +124,9 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile, onSignOut }: Exp
     setStep({ name: 'exported', ...exported })
   }, [])
 
-  const check = useCallback(async () => {
-    setStep({ name: 'checking' })
+  // quiet: keep the current screen (and the typing box with its focus) while re-checking.
+  const check = useCallback(async (quiet = false) => {
+    if (!quiet) setStep({ name: 'checking' })
     setError(null)
     try {
       const result = await api.request<Opened>('POST', '/actions/export_customers/authorize')
@@ -132,6 +147,20 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile, onSignOut }: Exp
     started.current = true
     void check()
   }, [check])
+
+  // While waiting for evidence, check again as soon as a new sample is saved for this sign-in,
+  // so typing in the box below leads straight to a decision.
+  const { last } = usePassive()
+  const seen = useRef(last)
+  const waiting =
+    step.name === 'result' &&
+    (opened?.decision.outcome === 'UNCERTAIN' ||
+      (opened?.decision.outcome === 'INSUFFICIENT_EVIDENCE' && opened.decision.reason === 'no_interaction_yet'))
+  useEffect(() => {
+    if (last === seen.current) return
+    seen.current = last
+    if (waiting && last?.purpose === 'evidence') void check(true)
+  }, [last, waiting, check])
 
   function download(customers: Customer[]) {
     const url = URL.createObjectURL(new Blob([customersCsv(customers)], { type: 'text/csv' }))
@@ -155,7 +184,7 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile, onSignOut }: Exp
     </div>
   )
   const checkAgain = (
-    <Button size="lg" onClick={check} className="h-11 px-5 text-base">
+    <Button size="lg" onClick={() => check()} className="h-11 px-5 text-base">
       <RotateCw aria-hidden="true" />
       Check again
     </Button>
@@ -184,7 +213,7 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile, onSignOut }: Exp
               {decision.reason === 'learning_session' &&
                 'You verified with the demo authenticator in this sign-in, so everything you do here for 15 minutes is teaching your profile. Checking this sign-in against a profile it just taught would prove nothing. Sign out and back in (without the authenticator), work for a minute, then export to see a real check. This is not a mismatch.'}
               {decision.reason === 'no_interaction_yet' &&
-                'There is not enough recent activity from this sign-in to compare. Keep working for a minute (search, write a note, click around), then check again. This is not a mismatch.'}
+                'Nothing from this sign-in has been saved to compare yet: a sample needs about 50 keys or 12 clicks. This is not a mismatch.'}
               {decision.reason === 'not_enrolled' &&
                 'This account has no finished behaviour profile yet, so there is nothing to compare with. This is not a mismatch.'}
               {decision.reason === 'model_missing' &&
@@ -192,7 +221,7 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile, onSignOut }: Exp
               {(decision.reason === 'window_not_measurable' || decision.reason === 'no_evidence') &&
                 'Recent activity could not be measured well enough to compare. This is not a mismatch.'}
             </Outcome>
-            {decision.reason === 'no_interaction_yet' && <NextSample />}
+            {decision.reason === 'no_interaction_yet' && <KeepWorking />}
             {decision.reason !== 'learning_session' && <Parts decision={decision} me={me} />}
             {actions(
               decision.reason === 'no_interaction_yet' ? (
@@ -220,7 +249,7 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile, onSignOut }: Exp
             >
               Recent activity sits between the two thresholds. A little more typing or clicking usually settles it.
             </Outcome>
-            <NextSample />
+            <KeepWorking />
             <Parts decision={decision} me={me} />
             {actions(checkAgain)}
           </div>

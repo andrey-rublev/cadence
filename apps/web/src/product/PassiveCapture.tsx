@@ -12,6 +12,8 @@ import {
 } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 import type { Me, Modality, PassiveStatus } from '@/lib/product'
 
@@ -127,6 +129,31 @@ export function Meter({ label, value, total }: { label: string; value: number; t
           style={{ width: `${Math.min(1, value / total) * 100}%` }}
         />
       </span>
+    </div>
+  )
+}
+
+export const PRACTICE_PROMPT =
+  'Describe your last working day: what you did first, who you talked to, and what is still on your list.'
+
+/** A place to type in your own words. The text stays in the page; only key timing and zones are sent. */
+export function PracticeBox({ id, label, rows = 4 }: { id: string; label: string; rows?: number }) {
+  const [text, setText] = useState('')
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Textarea
+        id={id}
+        rows={rows}
+        placeholder={PRACTICE_PROMPT}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        className="text-base"
+      />
+      <p className="text-xs text-muted-foreground">
+        What you type stays in this page. Cadence records when keys go down and up and which part of the keyboard they
+        are on, never the characters.
+      </p>
     </div>
   )
 }

@@ -24,7 +24,9 @@ export function ProductApp() {
   /** `undefined` while the first check is in flight; `null` when signed out. */
   const [me, setMe] = useState<Me | null | undefined>(undefined)
   const [view, setView] = useState<View>('customers')
-  const root = useRef<HTMLDivElement>(null)
+  // The whole page, not just the main column: dialogs (the export check) render at the end
+  // of <body>, and activity inside them must count too.
+  const root = useRef<HTMLElement>(document.body)
 
   useEffect(() => {
     api.request<Me | null>('GET', '/me').then(setMe, () => setMe(null))
@@ -39,7 +41,6 @@ export function ProductApp() {
   return (
     <PassiveProvider me={me} setMe={setMe} root={root}>
       <div
-        ref={root}
         className="mx-auto grid min-h-svh w-full max-w-6xl grid-rows-[auto_1fr] gap-8 px-5 py-6 sm:px-8 sm:py-8"
       >
         <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">

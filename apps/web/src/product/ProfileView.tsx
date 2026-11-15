@@ -3,17 +3,12 @@ import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { api, explain } from '@/lib/api'
 import { MODALITY_LABEL, type Me, type Modality } from '@/lib/product'
 
 import { Card, HistoryCard, PassiveModelsCard } from './EvidenceCards'
 import { FallbackPanel } from './FallbackPanel'
-import { Meter, NextSample } from './PassiveCapture'
-
-const PROMPT =
-  'Describe your last working day: what you did first, who you talked to, and what is still on your list.'
+import { Meter, NextSample, PracticeBox } from './PassiveCapture'
 
 function ModalityProgress({ modality, me }: { modality: Modality; me: Me }) {
   const status = me.passive[modality]
@@ -32,15 +27,22 @@ function ModalityProgress({ modality, me }: { modality: Modality; me: Me }) {
 /** Learning happens while the person works. A trusted verification opens a 15-minute window. */
 function Learning({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const ready = me.passive.keys.sufficient || me.passive.pointer.sufficient
-  const [text, setText] = useState('')
 
   if (!me.trusted) {
     return (
       <div className="grid gap-3">
-        <p>
-          Each learning session starts with trusted verification, so only the account’s owner shapes the profile that
-          later checks rely on. After that, Cadence learns for 15 minutes while you work normally.
-        </p>
+        {ready ? (
+          <p>
+            This sign-in is being checked quietly: what you do here is compared with your profile when you export. You
+            only need the demo authenticator to add more to the profile, which starts a 15-minute learning session (and
+            exports in that session are not checked).
+          </p>
+        ) : (
+          <p>
+            Each learning session starts with trusted verification, so only the account’s owner shapes the profile that
+            later checks rely on. After that, Cadence learns for 15 minutes while you work normally.
+          </p>
+        )}
         <FallbackPanel onVerified={({ me: updated }) => onMe(updated)} />
       </div>
     )
@@ -51,21 +53,7 @@ function Learning({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
         Learning now. Work as you normally would: search customers, write notes, click around. To speed it up, type
         here and click through the list.
       </p>
-      <div className="grid gap-1.5">
-        <Label htmlFor="practice">Typing practice</Label>
-        <Textarea
-          id="practice"
-          rows={4}
-          placeholder={PROMPT}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="text-base"
-        />
-        <p className="text-xs text-muted-foreground">
-          What you type stays in this page. Cadence records when keys go down and up and which part of the keyboard
-          they are on, never the characters.
-        </p>
-      </div>
+      <PracticeBox id="practice" label="Typing practice" />
       <NextSample />
       {ready && (
         <p className="text-sm text-muted-foreground">
