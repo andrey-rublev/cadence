@@ -26,6 +26,8 @@ That starts four services; Ctrl+C stops them all.
 
 If the ports are busy: `npm start -- --api-port 8002 --web-port 5175 --partner-api-port 8102 --partner-web-port 5182`.
 
+For a local Action Recorder test, start the demo with `VITE_NORTHWIND_RECORDER_TEST=1 npm start` and open `http://localhost:5180/`. Create a disposable account with `action-recorder@example.test` and `synthetic-recorder-only`, then sign out. Record the sign-in using only those synthetic credentials. Restart without the flag to restore password masking.
+
 ### The demo, step by step
 
 1. On **Cadence**, create an account and finish setup (click test, then typing test).
@@ -51,7 +53,7 @@ Partner server         ---secret----------> Cadence /v1/checks/<id> -> resolved?
 - **No minimum activity.** Whatever was typed or clicked is used. A sign-in (15 to 45 keys, the password part timing only) goes to a model trained for exactly that; longer stretches go to the 50-key model; too little evidence is never a pass, it goes to verification.
 - **Personalised step-up.** For each input, Cadence scores every sample in the person's profile against the rest. The input whose own samples sit furthest above the pass mark is the test recommended to them.
 - **Practice sign-ins per site.** Right after linking, the person types the partner's own email and password three times on the partner's sign-in form. The partner checks the password and passes Cadence an evidence token; Cadence keeps the timing as that site's sign-in samples. Practice is open for 30 minutes and 8 tries, and a sample unlike the typing-test profile is turned away, so someone else with the password cannot seed it. Comparing new sign-ins directly with these samples is built but off: on Aalto it added only about 0.002 AUC (below), so for now they complete the profile rather than change the score.
-- **Learning only from verified checks.** Evidence joins the profile only when the check passed or the person confirmed it. A sign-in that looked like someone else is never learned, even after the person confirms, because one bad sample hurts every later check.
+- **Learning only from verified checks.** Evidence joins the profile after verification. Passing a follow-up test lets Cadence learn from the original sign-in's typing, even when that typing initially scored as a mismatch.
 - **Characters never leave the page.** Keys become one of 13 keyboard zones in the browser; password fields send timing only.
 
 Code: `backend/cadence/api/sites.py` (partner API, linking, verification), `backend/cadence/passive.py` (scoring, login model, test recommendation), `backend/cadence/setup.py`, `backend/partner_demo/` (Northwind's server), `packages/sdk/src/activity.ts` (`recordActivity`, `sendEvidence`), `apps/web/src/cadence/` (Cadence site), `apps/partner/` (Northwind's site).

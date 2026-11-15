@@ -127,7 +127,7 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : (
-            <p>Dig eight spots, carry three finds to the tray, then follow the tunnelling marker for six seconds. About 20 seconds.</p>
+            <p>Dig up eight pieces of ore, drag three coins into the tray, then follow the drill for six seconds. About 20 seconds.</p>
           )}
           <Button size="lg" onClick={startRound} disabled={busy}>
             {busy ? 'One moment' : `Start ${roundName.toLowerCase()}`}

@@ -17,6 +17,7 @@ export function SignInFields({
   onPassword,
   onChangeEmail,
   passwordAutoComplete = 'current-password',
+  syntheticPassword = false,
 }: {
   id: string
   step: SignInStep
@@ -26,6 +27,7 @@ export function SignInFields({
   onPassword: (value: string) => void
   onChangeEmail: () => void
   passwordAutoComplete?: string
+  syntheticPassword?: boolean
 }) {
   if (step === 'email')
     return (
@@ -36,7 +38,7 @@ export function SignInFields({
           type="email"
           value={email}
           onChange={(e) => onEmail(e.target.value)}
-          autoComplete="username"
+          autoComplete={syntheticPassword ? 'off' : 'username'}
           autoFocus
           required
         />
@@ -57,15 +59,18 @@ export function SignInFields({
         </button>
       </div>
       {/* Kept for password managers, which pair a password with the username on the same form. */}
-      <input type="email" name="username" value={email} autoComplete="username" readOnly hidden />
+      {!syntheticPassword && (
+        <input type="email" name="username" value={email} autoComplete="username" readOnly hidden />
+      )}
       <div className="grid gap-2">
         <Label htmlFor={`${id}-password`}>Password</Label>
         <Input
           id={`${id}-password`}
-          type="password"
+          type={syntheticPassword ? 'text' : 'password'}
           value={password}
           onChange={(e) => onPassword(e.target.value)}
-          autoComplete={passwordAutoComplete}
+          autoComplete={syntheticPassword ? 'off' : passwordAutoComplete}
+          spellCheck={syntheticPassword ? false : undefined}
           autoFocus
           required
           minLength={8}

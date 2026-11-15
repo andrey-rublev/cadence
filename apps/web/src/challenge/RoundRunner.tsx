@@ -8,18 +8,18 @@ function instruction(layout: Layout, view: ChallengeView | null): string {
   if (!task) return 'Saving this round'
   const before = layout.tasks.slice(0, view.taskIndex)
   if (task.kind === 'click') {
-    if (view.taskIndex === 0) return 'Click the marked spot to break ground.'
+    if (view.taskIndex === 0) return 'Click the ore to break ground.'
     const total = layout.tasks.filter((t) => t.kind === 'click').length - 1
-    return `Dig each marked spot as it appears. ${view.taskIndex} of ${total}`
+    return `Click each piece of ore as it appears. ${view.taskIndex} of ${total}`
   }
   if (task.kind === 'drag') {
     const n = before.filter((t) => t.kind === 'drag').length + 1
     const total = layout.tasks.filter((t) => t.kind === 'drag').length
-    return `Drag the find into the tray. ${n} of ${total}`
+    return `Drag the unearthed coin into the tray. ${n} of ${total}`
   }
   return view.tracking
-    ? 'Keep your pointer on the marker until the bar fills.'
-    : 'Move onto the marker. It starts tunnelling when you touch it.'
+    ? 'Keep your pointer on the drill until the bar fills.'
+    : 'Move your pointer onto the drill to start tunnelling.'
 }
 
 /** Where the round stands: three stages, each a labelled bar. The live instruction says the same in words. */
@@ -29,8 +29,8 @@ function RoundProgress({ layout, view }: { layout: Layout; view: ChallengeView |
   const stages = [
     // The first click only starts the round, so it is not one of the digs.
     { name: 'Dig', done: Math.max(0, count('click', done) - 1), total: count('click', layout.tasks) - 1 },
-    { name: 'Carry', done: count('drag', done), total: count('drag', layout.tasks) },
-    { name: 'Follow', done: count('track', done), total: 1 },
+    { name: 'Recover', done: count('drag', done), total: count('drag', layout.tasks) },
+    { name: 'Tunnel', done: count('track', done), total: 1 },
   ]
   return (
     <ol aria-hidden="true" className="grid grid-cols-[8fr_3fr_2fr] gap-2">

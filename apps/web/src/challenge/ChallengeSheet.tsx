@@ -89,8 +89,8 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
   return (
     <div
       ref={surface}
-      aria-label="Challenge area"
-      className="relative w-full max-w-[800px] touch-none overflow-hidden rounded-lg border border-rule bg-ground select-none"
+      aria-label="Excavation area"
+      className="relative w-full max-w-[800px] touch-none overflow-hidden rounded-xl border border-contour-deep bg-linear-to-b from-ground-light to-ground select-none"
       style={{ aspectRatio: `${SHEET.w} / ${SHEET.h}` }}
     >
       <svg viewBox={`0 0 ${SHEET.w} ${SHEET.h}`} className="absolute inset-0 size-full" aria-hidden="true">
@@ -129,7 +129,7 @@ export function ChallengeSheet({ layout, onComplete, onView, underlay, children 
           <>
             <polyline
               ref={tunnel}
-              className="fill-none stroke-contour-deep/60"
+              className="fill-none stroke-pit/40"
               strokeWidth={5}
               strokeLinecap="round"
               strokeLinejoin="round"

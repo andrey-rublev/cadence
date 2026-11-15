@@ -14,8 +14,8 @@ type StepId = 'consent' | 'clicks' | 'typing'
 
 const STEPS: { id: StepId; title: string }[] = [
   { id: 'consent', title: 'Consent' },
-  { id: 'clicks', title: 'Click test' },
-  { id: 'typing', title: 'Typing test' },
+  { id: 'clicks', title: 'Excavation' },
+  { id: 'typing', title: 'Field notes' },
 ]
 
 const SENTENCE_KEYS = Math.round(SENTENCES.reduce((sum, s) => sum + s.length, 0) / SENTENCES.length)
@@ -240,10 +240,10 @@ function ClickStep({ me }: { me: Me }) {
 
   return (
     <>
-      <Heading title="Click each circle">
-        Aim and click the way you normally would. It takes about 40 seconds.
+      <Heading title="Excavate the marked spots">
+        Click each piece of ore as it appears. Move the way you normally would. It takes about 40 seconds.
       </Heading>
-      <TargetTest progress={filled} status={left > 0 ? `${left} to go` : 'Saving…'} />
+      <TargetTest progress={filled} status={left > 0 ? `${left} to dig` : 'Saving…'} />
       {note && <Note>{note}</Note>}
     </>
   )
@@ -261,14 +261,14 @@ function TypingStep({ me, onTyping }: { me: Me; onTyping: (typed: number) => voi
 
   return (
     <>
-      <Heading title="Type each sentence">
-        Type at your normal pace and leave mistakes if you like. The next sentence appears by itself.
+      <Heading title="Record the field notes">
+        Copy each sentence at your normal pace. The next note appears by itself.
       </Heading>
       <div className="grid gap-3">
         <SentenceTest start={start} onTyping={onTyping} autoFocus />
         <div className="flex items-center gap-4">
           <div className="flex-1">
-            <Progress value={filled} label="Typing test progress" />
+            <Progress value={filled} label="Field notes progress" />
           </div>
           <span className="font-mono text-xs text-muted-foreground" aria-live="polite">
             {complete

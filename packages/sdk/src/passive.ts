@@ -1,4 +1,4 @@
-import { MODIFIER, zoneOfEvent } from './keys'
+import { MODIFIER, zoneOfKeySample } from './keys'
 import { DOWN, MOVE, UP, type Sample } from './types'
 
 /** One key event on the wire: [t_ms, kind (1 down, 2 up), zone]. Never a character. */
@@ -56,7 +56,7 @@ export function startPassive({ root, onWindow, onProgress, strokes = 12, keys = 
   let keyEvents: KeySample[] = []
   let keyOrigin = 0
   let keyPresses = 0
-  const held = new Set<string>()
+  const held = new Map<string, number>()
 
   const progress = () => onProgress?.({ strokes: pointerStrokes, keys: keyPresses })
 
@@ -95,10 +95,8 @@ export function startPassive({ root, onWindow, onProgress, strokes = 12, keys = 
   }
 
   const keySample = (e: KeyboardEvent, kind: 1 | 2) => {
-    if (kind === 1 && (e.repeat || held.has(e.code))) return
-    if (kind === 1) held.add(e.code)
-    else if (!held.delete(e.code)) return
-    const zone = zoneOfEvent(e)
+    const zone = zoneOfKeySample(e, kind, held)
+    if (zone === null) return
     if (!keyEvents.length) keyOrigin = e.timeStamp
     const t = Math.max(round1(e.timeStamp - keyOrigin), keyEvents.at(-1)?.[0] ?? 0)
     if (t > MAX_WINDOW_MS) {

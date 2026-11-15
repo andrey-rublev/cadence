@@ -11,31 +11,15 @@ import { CodeForm } from '@/product/CodeForm'
 
 import { SENTENCES, SentenceTest, TargetTest } from './tests'
 
-const TEST_NAME: Record<Modality, string> = { keys: 'Type one sentence', pointer: 'Click 14 circles' }
-
-const WEAKNESS: Record<PassiveDecision['outcome'], number> = {
-  INSUFFICIENT_EVIDENCE: 0,
-  UNCERTAIN: 1,
-  INCONSISTENT: 2,
-  CONSISTENT: 3,
+const DIGS_PER_TEST = 14
+const TEST_NAME: Record<Modality, string> = {
+  keys: 'Copy one field note',
+  pointer: `Click ${DIGS_PER_TEST} pieces of ore`,
 }
 
-/**
- * The test to run, with no choice offered: the input the sign-in said least about (so the test
- * fills the gap), among those this person's profile can actually be tested on. When both were
- * equally thin, the one their profile is most likely to pass.
- */
-function pickTest(info: StepUpInfo): Modality | null {
-  const { recommended, options } = info.recommendation
-  if (!recommended) return null
-  const rank = (m: Modality) => {
-    const part = info.parts.find((p) => p.modality === m)
-    return part ? WEAKNESS[part.outcome] : 0
-  }
-  const available = options.map((o) => o.modality)
-  const weakest = Math.min(...available.map(rank))
-  const pool = available.filter((m) => rank(m) === weakest)
-  return pool.includes(recommended) ? recommended : pool[0]
+interface TestResult {
+  decision: PassiveDecision
+  resolved: boolean
 }
 
 /**
@@ -47,15 +31,14 @@ export function VerifyPage({ checkId }: { checkId: string }) {
   const returnTo = params.get('return_to')
   const [info, setInfo] = useState<StepUpInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [test, setTest] = useState<Modality | null>(null)
-  const [result, setResult] = useState<PassiveDecision | null>(null)
+  const [usingCode, setUsingCode] = useState(false)
+  const [result, setResult] = useState<TestResult | null>(null)
 
   const load = useCallback(async () => {
     try {
       const query = returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ''
       const loaded = await api.request<StepUpInfo>('GET', `/stepup/${checkId}${query}`)
       setInfo(loaded)
-      setTest((t) => t ?? pickTest(loaded))
     } catch (e) {
       setError(explain(e, { check_unknown: 'This verification link is not valid. Start again from the site you were signing in to.' }))
     }
@@ -73,9 +56,9 @@ export function VerifyPage({ checkId }: { checkId: string }) {
     return () => window.clearTimeout(t)
   }, [backTo])
 
-  // Tests while there are some left; the code only when a test can't be used or has run out.
-  const failed = result !== null // a test was taken and it did not settle the check: no retry
-  const testing = test !== null && info !== null && info.tests_left > 0 && !failed
+  const test = info && info.tests_left > 0 ? info.recommendation.recommended : null
+  const failed = result !== null && !result.resolved
+  const testing = test !== null && !usingCode && !result
 
   return (
     <Shell width="medium">
@@ -113,20 +96,28 @@ export function VerifyPage({ checkId }: { checkId: string }) {
                   <>
                     <h2 className="text-lg">{TEST_NAME[test]}</h2>
                     <QuickTest
-                      key={`${test}-${info.tests_left}`}
+                      key={test}
                       modality={test}
                       checkId={checkId}
-                      onResult={(decision) => (setResult(decision), void load())}
+                      onUseCode={() => setUsingCode(true)}
+                      onResult={(out) => {
+                        setResult(out)
+                        if (out.resolved) void load()
+                      }}
                     />
                   </>
                 )}
 
-                {!testing && (
+                {result?.resolved && <p role="status">Verified.</p>}
+
+                {!testing && !result?.resolved && (
                   <>
-                    {(failed || test) && (
+                    {failed && (
                       <Alert variant="destructive" role="alert">
                         <AlertDescription>
-                          We couldn’t verify you. Please use another form of two-factor authentication to continue.
+                          {result.decision.outcome === 'INSUFFICIENT_EVIDENCE'
+                            ? 'Cadence couldn’t capture enough usable activity. Verify with a code to continue.'
+                            : 'Cadence couldn’t confirm a match. Verify with a code to continue.'}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -149,7 +140,12 @@ export function VerifyPage({ checkId }: { checkId: string }) {
   )
 }
 
-function QuickTest({ modality, checkId, onResult }: { modality: Modality; checkId: string; onResult: (d: PassiveDecision) => void }) {
+function QuickTest({ modality, checkId, onResult, onUseCode }: {
+  modality: Modality
+  checkId: string
+  onResult: (result: TestResult) => void
+  onUseCode: () => void
+}) {
   const area = useRef<HTMLDivElement>(null)
   const recorder = useRef<ActivityRecorder | null>(null)
   const [busy, setBusy] = useState(false)
@@ -168,8 +164,7 @@ function QuickTest({ modality, checkId, onResult }: { modality: Modality; checkI
     setBusy(true)
     setError(null)
     try {
-      const out = await api.request<{ decision: PassiveDecision }>('POST', `/stepup/${checkId}/test`, recorder.current.snapshot())
-      onResult(out.decision)
+      onResult(await api.request<TestResult>('POST', `/stepup/${checkId}/test`, recorder.current.snapshot()))
     } catch (e) {
       setError(explain(e, { no_tests_left: 'No tests left for this check. Use a code instead.' }))
       setBusy(false)
@@ -186,23 +181,28 @@ function QuickTest({ modality, checkId, onResult }: { modality: Modality; checkI
   }, [ready])
 
   return (
-    <div ref={area} className="grid gap-4">
-      {modality === 'keys' ? (
-        <SentenceTest sentences={[SENTENCES[sentence.current]]} onSentence={() => setReady(true)} autoFocus />
-      ) : (
-        <TargetTest total={14} onDone={() => setReady(true)} />
-      )}
-      {busy && (
-        <p className="text-sm text-muted-foreground" role="status">
-          Checking…
-        </p>
-      )}
-      {error && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-    </div>
+    <>
+      <div ref={area} className="grid gap-4">
+        {modality === 'keys' ? (
+          <SentenceTest sentences={[SENTENCES[sentence.current]]} onSentence={() => setReady(true)} autoFocus />
+        ) : (
+          <TargetTest total={DIGS_PER_TEST} onDone={() => setReady(true)} />
+        )}
+        {busy && (
+          <p className="text-sm text-muted-foreground" role="status">
+            Checking…
+          </p>
+        )}
+        {error && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+      <Button type="button" variant="link" onClick={onUseCode} disabled={ready && !error} className="h-auto justify-self-start p-0">
+        Verify with a code
+      </Button>
+    </>
   )
 }
 

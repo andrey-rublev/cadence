@@ -311,10 +311,11 @@ def recommend_test(db: Session, account_id: int) -> dict:
     in units of the gap between the two thresholds, so typing and clicking compare fairly.
     """
     options = []
+    signed_in = sign_ins(db, account_id)
     for modality in MODALITIES:
         model = passive_model(modality)
         enrolled = [v for v, _, _ in _vectors(db, account_id, modality, "enroll")]
-        if model is None or len(enrolled) < 3:
+        if model is None or len(enrolled) < 3 or not _sufficient(len(enrolled), signed_in, modality):
             continue
         matrix = np.array(enrolled)
         own = []
@@ -410,18 +411,13 @@ def earlier_rhythms(db: Session, account_id: int, site_id: str, presses: int) ->
     return list(reversed(matching))
 
 
-def _merge(login: str, rhythm: str) -> str:
-    """The keyboard verdict from the sign-in model and the password rhythm, by the same rule
-    as across inputs: either looking like someone else holds it, else either match releases."""
-    outcomes = {login, rhythm}
-    for outcome in (INCONSISTENT, CONSISTENT, UNCERTAIN):
-        if outcome in outcomes:
-            return outcome
-    return login
-
-
 def _with_password_rhythm(db: Session, account_id: int, site_id: str, part: Part, windows: list[dict]) -> Part:
-    """Fold the key-by-key comparison of the password with earlier sign-ins into the keyboard part."""
+    """Use the site's password comparison when measurable; otherwise retain the general verdict.
+
+    The password model is calibrated for repeated text. Once it has enough matching history,
+    its verdict governs typing, including uncertainty and mismatches. The general model's
+    score remains available for diagnostics.
+    """
     window = next((w for w in windows if w["modality"] == "rhythm"), None)
     if window is None:
         part.password = "not_typed"
@@ -449,7 +445,7 @@ def _with_password_rhythm(db: Session, account_id: int, site_id: str, part: Part
     part.rhythm_score = float(score)
     part.rhythm_outcome = CONSISTENT if score > thresholds[1] else INCONSISTENT if score < thresholds[0] else UNCERTAIN
     part.earlier_sign_ins = len(earlier)
-    part.outcome = _merge(part.outcome, part.rhythm_outcome)
+    part.outcome = part.rhythm_outcome
     if part.outcome != INSUFFICIENT:
         part.reason = None
     return part

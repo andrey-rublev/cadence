@@ -39,7 +39,7 @@
   --color-consistent: var(--consistent);
   --color-uncertain: var(--uncertain);
 
-  /* Dig site: used only inside the collection challenge sheet. */
+  /* Excavation games and field notes. */
   --color-ground: var(--ground);
   --color-ground-light: var(--ground-light);
   --color-contour: var(--contour);

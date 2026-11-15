@@ -62,11 +62,8 @@ export function zoneOfCode(code: string): number {
   return CHAR_ZONE.get(CODE_CHAR[code] ?? '') ?? HIDDEN
 }
 
-/**
- * Zone of a key event, or HIDDEN for secrets: password fields, one-time codes, and anything
- * marked `data-cadence-private` keep only their timing.
- */
-export function zoneOfEvent(e: KeyboardEvent): number {
+/** Private fields label character presses as SECRET without keeping the character or zone. */
+function zoneOfEvent(e: KeyboardEvent): number | null {
   const target = e.target as HTMLInputElement | null
   const secret =
     target?.tagName === 'INPUT' &&
@@ -75,5 +72,19 @@ export function zoneOfEvent(e: KeyboardEvent): number {
   // Leaving the field (Enter, Tab) says nothing about the secret, and ends its run of presses.
   if (e.code === 'Enter' || e.code === 'NumpadEnter') return ENTER
   if (e.code === 'Tab') return HIDDEN
+  if (e.isComposing || e.metaKey || (e.ctrlKey && !e.getModifierState('AltGraph')) || [...e.key].length !== 1) return null
   return SECRET
+}
+
+/** Pair each release with the zone recorded at keydown, even if focus has moved. */
+export function zoneOfKeySample(e: KeyboardEvent, kind: 1 | 2, held: Map<string, number>): number | null {
+  if (kind === 2) {
+    const zone = held.get(e.code)
+    held.delete(e.code)
+    return zone ?? null
+  }
+  if (e.repeat || held.has(e.code)) return null
+  const zone = zoneOfEvent(e)
+  if (zone !== null) held.set(e.code, zone)
+  return zone
 }

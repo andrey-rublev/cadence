@@ -10,6 +10,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api, evidenceToken, explain, recordActivity, type Gate, type Me } from '@/lib/api'
 
+const syntheticPassword =
+  import.meta.env.DEV &&
+  import.meta.env.VITE_NORTHWIND_RECORDER_TEST === '1' &&
+  ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) &&
+  window.location.pathname === '/'
+
 /**
  * Northwind's sign-in: email, then password, on two screens of one form. Nothing here asks the
  * person to do anything for Cadence: the typing and clicking they do anyway, across both
@@ -74,6 +80,9 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
           <form ref={form} onSubmit={submit} className="grid gap-5 rounded-xl border border-border bg-card p-6 sm:p-7">
             <div className="grid gap-1">
               <h1 className="text-xl">{mode === 'login' ? 'Sign in' : 'Create your account'}</h1>
+              {syntheticPassword && mode === 'login' && (
+                <p className="text-sm text-muted-foreground">Action Recorder test. Use synthetic credentials only.</p>
+              )}
               {mode === 'register' && <p className="text-sm text-muted-foreground">Any email works. Nothing is sent.</p>}
             </div>
 
@@ -86,6 +95,7 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
                 onEmail={setEmail}
                 onPassword={setPassword}
                 onChangeEmail={() => (setStep('email'), setPassword(''), recorder.current?.reset())}
+                syntheticPassword={syntheticPassword}
               />
             ) : (
               <>

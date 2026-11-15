@@ -1,9 +1,7 @@
 /**
  * Dig-site artwork for the challenge tasks, drawn as a field survey sheet. Cosmetic only.
  *
- * Flat shapes, one accent: pen blue always means "act on this". Every interactive piece
- * is drawn around the origin and fills a circle of radius `r`, the task's real hit area,
- * so what people see is exactly what counts.
+ * Each interactive piece is centered on the origin and uses the task's hit radius `r`.
  */
 
 import { SHEET } from './sheet'
@@ -47,36 +45,32 @@ export function SurveyGround() {
   )
 }
 
-/** A marked spot to dig: a solid survey marker with a cross-hair. */
+/** A seam of ore, with a bright crystal visible at the surface. */
 export function DigSpot({ r }: { r: number }) {
-  const k = r * 0.46
   return (
     <>
-      <circle r={r} className="fill-primary" />
-      <path
-        d={`M${-k} 0H${k}M0 ${-k}V${k}`}
-        className="stroke-primary-foreground"
-        strokeWidth={Math.max(1.75, r / 10)}
-        strokeLinecap="round"
-      />
+      <circle r={r} className="fill-pit" />
+      <g transform={`scale(${r / 24})`}>
+        <path d="M-14 -3 -7 -12H7L14 -3 0 13Z" className="fill-brass" />
+        <path d="M-14 -3H14L0 13Z" className="fill-brass-deep" />
+        <path d="M-5 -3 0 -12 5 -3 0 13Z" className="fill-ground-light" />
+      </g>
     </>
   )
 }
 
-/** What a dug spot leaves behind: a depression in contour lines. Decoration; not clickable. */
+/** Loose soil around the pit left by an excavated spot. */
 export function Hole({ r }: { r: number }) {
   return (
     <>
       <circle
         r={r}
-        className="origin-center animate-dug fill-none stroke-primary [transform-box:fill-box] motion-reduce:hidden"
+        className="origin-center animate-dug fill-none stroke-brass-deep [transform-box:fill-box] motion-reduce:hidden"
         strokeWidth={2}
       />
-      <g className="fill-none stroke-contour-deep" strokeWidth={1.25}>
-        <circle r={r * 0.82} />
-        <circle r={r * 0.48} />
-      </g>
-      <circle r={Math.max(1.5, r * 0.13)} className="fill-pit/55" />
+      <circle r={r * 0.82} className="fill-contour stroke-contour-deep" strokeWidth={1.25} />
+      <circle r={r * 0.55} className="fill-pit/75" />
+      <circle cy={r * 0.1} r={r * 0.34} className="fill-pit" />
     </>
   )
 }
@@ -108,12 +102,15 @@ export function Tray({ r }: { r: number }) {
   )
 }
 
-/** The tunnelling marker to follow: the same solid accent disc as a dig spot, ringed instead of crossed. */
+/** The drill head to follow, drawn from above. */
 export function Digger({ r }: { r: number }) {
   return (
     <>
       <circle r={r} className="fill-primary" />
-      <circle r={r * 0.42} className="fill-none stroke-primary-foreground" strokeWidth={2.5} />
+      <g transform={`scale(${r / 24})`} className="fill-none stroke-primary-foreground" strokeWidth={2.5}>
+        <circle r={11} />
+        <path d="M0 -11V-4M11 0H4M0 11V4M-11 0H-4" strokeLinecap="round" />
+      </g>
     </>
   )
 }

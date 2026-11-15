@@ -10,10 +10,13 @@ from urllib.parse import parse_qs, urlparse
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from cadence.core.config import settings
 from cadence.core.db import SessionLocal
+from cadence.core.models import PassiveWindow
 from cadence.features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA, presses_from_events, window_vector, zone_of_code
+from cadence.features.keys import SECRET as PASSWORD_ZONE
 from cadence.main import app
 from cadence.verifier.artifact import Model, load_active, save
 from cadence.verifier.baseline import Baseline
@@ -22,6 +25,7 @@ from .conftest import HEADERS
 from .test_passive_api import (  # noqa: F401  (keys_model is a fixture)
     OWNER,
     STRANGER,
+    ZONES,
     body,
     consented_client,
     enroll_two_sign_ins,
@@ -168,6 +172,24 @@ def test_no_activity_is_never_a_pass_and_the_authenticator_resolves_it(site):
     assert check_status(result["check_id"])["resolved_by"] == "fallback"
 
 
+def test_stepup_only_recommends_a_test_when_the_profile_can_be_scored(site):
+    rng = np.random.default_rng(23)
+    client = consented_client()
+    for _ in range(settings.passive_min_windows):
+        assert client.post("/api/passive", json=body(typing(OWNER, rng)), headers=HEADERS).json()["purpose"] == "enroll"
+    finish_setup()
+    subject = link(client)
+    held = check(subject, None)
+    path = f"/api/stepup/{held['check_id']}"
+
+    # Several samples from the same sitting cannot be scored yet.
+    assert client.get(path, headers=HEADERS).json()["recommendation"] == {"recommended": None, "options": []}
+
+    # Practice adds the separate sitting that makes the test eligible.
+    assert practice(subject, typing(OWNER, rng, keys=30)).json()["accepted"]
+    assert client.get(path, headers=HEADERS).json()["recommendation"]["recommended"] == "keys"
+
+
 def test_partner_calls_are_bound_to_the_site(site):
     rng = np.random.default_rng(14)
     subject = link(owner_with_profile(rng))
@@ -246,15 +268,23 @@ def test_sign_ins_are_compared_with_earlier_sign_ins_on_the_same_site(history):
     assert remembered() == settings.history_min_sign_ins + 1
 
 
-def test_a_test_sentence_is_not_remembered_as_a_sign_in(history):
+@pytest.mark.parametrize("action", ["sign_in", "export_customers"])
+def test_a_passed_test_learns_the_original_typing_only_for_a_mismatched_sign_in(site, action):
     rng = np.random.default_rng(17)
     client = owner_with_profile(rng)
     subject = link(client)
-    held = check(subject, evidence(typing(STRANGER, rng, keys=30)).json()["token"])
+    original = typing(STRANGER, rng, keys=30, zones=ZONES + [PASSWORD_ZONE] * 14)
+    held = check(subject, evidence(original).json()["token"], action=action)
     assert held["outcome"] == "INCONSISTENT"
+    assert client.get("/api/sites", headers=HEADERS).json()["sites"][0]["sign_ins_remembered"] == 0
+
+    # A short test could also produce a login-length window, but only the original is a sign-in.
     passed = client.post(f"/api/stepup/{held['check_id']}/test", json={"keys": typing(OWNER, rng, keys=30)}, headers=HEADERS)
-    if passed.json()["resolved"]:
-        assert client.get("/api/sites", headers=HEADERS).json()["sites"][0]["sign_ins_remembered"] == 0
+    assert passed.json()["resolved"] is True
+    with SessionLocal() as db:
+        remembered = set(db.scalars(select(PassiveWindow.modality).where(PassiveWindow.purpose == "signin")))
+    assert remembered == ({"keys", "rhythm"} if action == "sign_in" else set())
+    assert client.get("/api/sites", headers=HEADERS).json()["sites"][0]["sign_ins_remembered"] == int(action == "sign_in")
 
 
 def practice(subject: str, events: list) -> TestClient:
@@ -301,8 +331,6 @@ def test_practice_sign_ins_after_connecting_teach_this_sites_sign_in(history, mo
     link_id = client.get("/api/sites", headers=HEADERS).json()["sites"][0]["id"]
     client.delete(f"/api/sites/{link_id}", headers=HEADERS)
     with SessionLocal() as db:
-        from cadence.core.models import PassiveWindow
-
         assert db.query(PassiveWindow).filter(PassiveWindow.purpose == "signin").count() == 0
 
 

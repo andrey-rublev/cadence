@@ -1,4 +1,4 @@
-import { MODIFIER, zoneOfEvent } from './keys'
+import { MODIFIER, zoneOfKeySample } from './keys'
 import type { KeySample } from './passive'
 import { DOWN, MOVE, UP, type Sample } from './types'
 
@@ -76,7 +76,7 @@ export function recordActivity({ root, onChange, keepMs = 10 * 60_000 }: Activit
   let keys: KeySample[] = []
   let pointer: Sample[] = []
   let lastMove = -Infinity
-  const held = new Set<string>()
+  const held = new Map<string, number>()
 
   const counts = (): ActivityCounts => ({
     keys: keys.filter(([, kind, zone]) => kind === 1 && zone !== MODIFIER).length,
@@ -105,10 +105,9 @@ export function recordActivity({ root, onChange, keepMs = 10 * 60_000 }: Activit
     else onPointer(e, MOVE)
   }
   const onKey = (e: KeyboardEvent, kind: 1 | 2) => {
-    if (kind === 1 && (e.repeat || held.has(e.code))) return
-    if (kind === 1) held.add(e.code)
-    else if (!held.delete(e.code)) return
-    keys.push([e.timeStamp, kind, zoneOfEvent(e)])
+    const zone = zoneOfKeySample(e, kind, held)
+    if (zone === null) return
+    keys.push([e.timeStamp, kind, zone])
     if (keys.length > MAX_KEYS) trim(e.timeStamp)
     if (kind === 1) changed()
   }
@@ -141,6 +140,7 @@ export function recordActivity({ root, onChange, keepMs = 10 * 60_000 }: Activit
     reset() {
       keys = []
       pointer = []
+      held.clear()
       changed()
     },
     stop: () => abort.abort(),

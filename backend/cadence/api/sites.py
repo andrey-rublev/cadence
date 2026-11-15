@@ -566,9 +566,14 @@ def stepup_test(check_id: str, body: Activity, db: Db) -> dict:
     decision = decide_evidence(db, check.account_id, windows)
     if decision.outcome == CONSISTENT:
         check.resolved_by, check.resolved_at = "test", now()
-        # The test is learned. The evidence that triggered the check is learned too, unless it
-        # looked like someone else: one bad sample in a profile hurts every later check.
-        original = [] if json.loads(check.decision_json)["outcome"] == INCONSISTENT else json.loads(check.windows_json)
+        original = json.loads(check.windows_json)
+        if json.loads(check.decision_json)["outcome"] == INCONSISTENT:
+            # A passed test confirms the sign-in, so its original typing can be learned.
+            original = [
+                window
+                for window in original
+                if check.action == "sign_in" and window["modality"] in ("keys", "rhythm")
+            ]
         check.windows_json = json.dumps(original + windows)
         learn(db, check)
     db.commit()
