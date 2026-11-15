@@ -1,0 +1,61 @@
+/**
+ * Keyboard zones. Mirrors backend/cadence/features/keys.py; change both together.
+ *
+ * Every physical key is reduced to a coarse zone (which hand and which row, or space,
+ * backspace, enter, modifier) here in the browser, so what leaves the page cannot be turned
+ * back into text. Keys typed into password fields are reported as zone 0: timing only.
+ */
+
+export const HIDDEN = 0
+export const SPACE = 9
+export const BACKSPACE = 10
+export const ENTER = 11
+export const MODIFIER = 12
+
+const ROWS: Record<number, string> = {
+  1: '`12345',
+  2: 'qwert',
+  3: 'asdfg',
+  4: 'zxcvb',
+  5: '67890-=',
+  6: 'yuiop[]\\',
+  7: "hjkl;'",
+  8: 'nm,./',
+}
+const CHAR_ZONE = new Map<string, number>(
+  Object.entries(ROWS).flatMap(([zone, chars]) => [...chars].map((ch) => [ch, Number(zone)] as const)),
+)
+const CODE_CHAR: Record<string, string> = {
+  Backquote: '`',
+  Minus: '-',
+  Equal: '=',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Backslash: '\\',
+  Semicolon: ';',
+  Quote: "'",
+  Comma: ',',
+  Period: '.',
+  Slash: '/',
+}
+const SPECIAL: Record<string, number> = { Space: SPACE, Backspace: BACKSPACE, Enter: ENTER, NumpadEnter: ENTER }
+const MODIFIERS = new Set([
+  'ShiftLeft',
+  'ShiftRight',
+  'ControlLeft',
+  'ControlRight',
+  'AltLeft',
+  'AltRight',
+  'CapsLock',
+  'MetaLeft',
+  'MetaRight',
+])
+
+/** Zone of a physical key from `KeyboardEvent.code`. */
+export function zoneOfCode(code: string): number {
+  if (code in SPECIAL) return SPECIAL[code]
+  if (MODIFIERS.has(code)) return MODIFIER
+  if (code.startsWith('Key') && code.length === 4) return CHAR_ZONE.get(code[3].toLowerCase()) ?? HIDDEN
+  if (code.startsWith('Digit') && code.length === 6) return CHAR_ZONE.get(code[5]) ?? HIDDEN
+  return CHAR_ZONE.get(CODE_CHAR[code] ?? '') ?? HIDDEN
+}

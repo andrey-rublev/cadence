@@ -1,35 +1,33 @@
-import type { ChallengeResult, IssuedChallenge } from '@cadence/sdk'
-import { CircleDashed, Download, ShieldAlert, ShieldCheck, Hourglass } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { CircleDashed, Download, Hourglass, RotateCw, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { RoundRunner } from '@/challenge/RoundRunner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api, explain } from '@/lib/api'
-import { customersCsv, type Customer, type Decision, type Me } from '@/lib/product'
+import {
+  customersCsv,
+  MODALITY_LABEL,
+  type Customer,
+  type Me,
+  type PassiveDecision,
+  type PassivePart,
+} from '@/lib/product'
 
 import { DecisionMeter } from './DecisionMeter'
 import { FallbackPanel } from './FallbackPanel'
+import { NextSample } from './PassiveCapture'
 
 type Step =
   | { name: 'checking' }
-  | { name: 'ready' } // a round is needed; waiting for the person to start it
-  | { name: 'round'; challenge: IssuedChallenge }
-  | { name: 'scoring' }
-  | { name: 'result' } // decision shown; action depends on its outcome
+  | { name: 'result' }
   | { name: 'fallback' }
   | { name: 'exported'; customers: Customer[]; basis: 'behavior' | 'fallback' }
 
 interface Opened {
   verification_id: string
-  decision: Decision
-}
-
-interface RoundResult {
-  decision: Decision
+  decision: PassiveDecision
   grant: string | null
-  rounds_left: number
 }
 
 interface ExportFlowProps {
@@ -54,70 +52,85 @@ function Outcome({ tone, icon, title, children }: { tone: string; icon: ReactNod
 
 const ICON = 'size-5 shrink-0'
 
+function partNote(part: PassivePart, me: Me): string {
+  const status = me.passive[part.modality]
+  switch (part.reason) {
+    case 'not_enrolled':
+      return `No profile yet: ${status.windows} of ${status.windows_needed} samples from ${status.sessions} of ${status.sessions_needed} sign-ins.`
+    case 'no_interaction_yet':
+      return 'Nothing recent from this sign-in yet.'
+    case 'model_missing':
+      return 'No model installed for this input.'
+    case 'window_not_measurable':
+      return 'Recent activity could not be measured well enough.'
+    default:
+      return ''
+  }
+}
+
+function Parts({ decision, me }: { decision: PassiveDecision; me: Me }) {
+  return (
+    <div className="grid gap-5">
+      {decision.parts.map((part) =>
+        part.score !== null ? (
+          <DecisionMeter
+            key={part.modality}
+            label={MODALITY_LABEL[part.modality]}
+            score={part.score}
+            rejectAt={part.reject_at}
+            acceptAt={part.accept_at}
+            basis={`averaged over ${part.windows} recent ${part.windows === 1 ? 'sample' : 'samples'}`}
+          />
+        ) : (
+          <p key={part.modality} className="text-sm">
+            <span className="font-medium">{MODALITY_LABEL[part.modality]}:</span>{' '}
+            <span className="text-muted-foreground">{partNote(part, me)}</span>
+          </p>
+        ),
+      )}
+    </div>
+  )
+}
+
 /**
- * The protected "Export customer records" action. Every decision shown here was made by
- * the server; this component only reports it and offers the next step. Closing or
- * tampering with it cannot produce an export, which needs a server-side grant.
+ * The protected "Export customer records" action, decided from ordinary use: no task, no
+ * game. Every decision is the server's; this dialog reports it and offers the next step.
+ * Closing or tampering with it cannot produce an export, which needs a server-side grant.
  */
 export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProps) {
   const [step, setStep] = useState<Step>({ name: 'checking' })
-  const [verificationId, setVerificationId] = useState('')
-  const [decision, setDecision] = useState<Decision | null>(null)
-  const [roundsLeft, setRoundsLeft] = useState(0)
+  const [opened, setOpened] = useState<Opened | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
 
-  const opening = useRef(false)
-  useEffect(() => {
-    // Opening a check writes a record on the server, so do it once per dialog even when
-    // React re-runs effects in development.
-    if (opening.current) return
-    opening.current = true
-    api
-      .request<Opened>('POST', '/actions/export_customers/authorize')
-      .then((opened) => {
-        setVerificationId(opened.verification_id)
-        setDecision(opened.decision)
-        setStep(opened.decision.reason === 'no_interaction_yet' ? { name: 'ready' } : { name: 'result' })
-      })
-      .catch((e) => (setError(explain(e)), setStep({ name: 'result' })))
-  }, [])
-
-  async function runExport(grant: string) {
+  const runExport = useCallback(async (grant: string) => {
     const exported = await api.request<{ customers: Customer[]; basis: 'behavior' | 'fallback' }>('POST', '/export', {
       grant,
     })
     setStep({ name: 'exported', ...exported })
-  }
+  }, [])
 
-  async function startRound() {
-    setBusy(true)
+  const check = useCallback(async () => {
+    setStep({ name: 'checking' })
     setError(null)
     try {
-      const challenge = await api.request<IssuedChallenge>('POST', '/challenges', {
-        purpose: 'verify',
-        verification_id: verificationId,
-      })
-      setStep({ name: 'round', challenge })
-    } catch (e) {
-      setError(explain(e))
-    }
-    setBusy(false)
-  }
-
-  async function finishRound(challenge: IssuedChallenge, result: ChallengeResult) {
-    setStep({ name: 'scoring' })
-    try {
-      const scored = await api.submitChallenge<RoundResult>(challenge.id, result)
-      setDecision(scored.decision)
-      setRoundsLeft(scored.rounds_left)
-      if (scored.grant) await runExport(scored.grant)
+      const result = await api.request<Opened>('POST', '/actions/export_customers/authorize')
+      setOpened(result)
+      if (result.grant) await runExport(result.grant)
       else setStep({ name: 'result' })
     } catch (e) {
       setError(explain(e))
-      setStep({ name: 'ready' })
+      setStep({ name: 'result' })
     }
-  }
+  }, [runExport])
+
+  // Opening a check writes a record on the server, so do it once per dialog even when
+  // React re-runs effects in development.
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    void check()
+  }, [check])
 
   function download(customers: Customer[]) {
     const url = URL.createObjectURL(new Blob([customersCsv(customers)], { type: 'text/csv' }))
@@ -126,81 +139,67 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProp
     URL.revokeObjectURL(url)
   }
 
-  const fallbackButton = (
-    <Button variant="outline" size="lg" onClick={() => setStep({ name: 'fallback' })} className="h-11 px-5 text-base">
-      Verify another way
+  const decision = opened?.decision
+  const actions = (primary?: ReactNode) => (
+    <div className="flex flex-wrap gap-2">
+      {primary}
+      <Button
+        variant={primary ? 'outline' : 'default'}
+        size="lg"
+        onClick={() => setStep({ name: 'fallback' })}
+        className="h-11 px-5 text-base"
+      >
+        Verify another way
+      </Button>
+    </div>
+  )
+  const checkAgain = (
+    <Button size="lg" onClick={check} className="h-11 px-5 text-base">
+      <RotateCw aria-hidden="true" />
+      Check again
     </Button>
   )
-  const inRound = step.name === 'round'
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] gap-5 overflow-y-auto p-6 sm:max-w-[856px]">
+      <DialogContent className="max-h-[calc(100svh-2rem)] gap-5 overflow-y-auto p-6 sm:max-w-[640px]">
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl font-bold">Export customer records</DialogTitle>
           <DialogDescription className="text-base">
-            Exporting is a sensitive action, so Cadence checks it before the server releases the file.
+            Exporting is sensitive, so Cadence compares how you have been typing and moving in this sign-in with your
+            profile before the server releases the file. There is nothing to play.
           </DialogDescription>
         </DialogHeader>
 
-        {step.name === 'checking' && <p className="text-muted-foreground">Checking what this export needs…</p>}
-
-        {(step.name === 'ready' || inRound || step.name === 'scoring') && (
-          <div className="grid gap-4">
-            <RoundRunner
-              challenge={inRound ? step.challenge : null}
-              idleText={
-                step.name === 'scoring'
-                  ? 'Comparing that round with your profile…'
-                  : 'A 20-second pointing task checks that the movement matches this account’s owner.'
-              }
-              onComplete={(result) => inRound && finishRound(step.challenge, result)}
-            >
-              {step.name === 'ready' && (
-                <div className="grid max-w-sm justify-items-center gap-4 rounded-xl border border-rule bg-card/95 p-6 text-center shadow-sm">
-                  <p>Dig eight spots, carry three finds to the tray, then follow the marker. Move the way you normally would.</p>
-                  <Button size="lg" onClick={startRound} disabled={busy} className="h-12 px-6 text-base">
-                    {busy ? 'One moment…' : 'Start the check'}
-                  </Button>
-                </div>
-              )}
-            </RoundRunner>
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-              <p>Using a different mouse, an injury or assistive technology can make this task unfair.</p>
-              <Button variant="link" onClick={() => setStep({ name: 'fallback' })} className="h-auto p-0 text-sm underline">
-                I can’t do this task. Verify another way
-              </Button>
-            </div>
-          </div>
-        )}
+        {step.name === 'checking' && <p className="text-muted-foreground">Comparing recent activity with your profile…</p>}
 
         {step.name === 'result' && decision?.outcome === 'INSUFFICIENT_EVIDENCE' && (
           <div className="grid gap-4">
             <Outcome
               tone="border-dashed border-input bg-muted/60"
               icon={<CircleDashed className={ICON} aria-hidden="true" />}
-              title="Not enough evidence"
+              title="Not enough evidence yet"
             >
-              {decision.reason === 'not_enrolled' && (
-                <>
-                  This account has no finished movement profile yet ({me.profile.rounds} of {me.profile.rounds_needed}{' '}
-                  rounds across {me.profile.sessions} of {me.profile.sessions_needed} sign-ins), so there is nothing to
-                  compare with. This is not a mismatch.
-                </>
-              )}
+              {decision.reason === 'no_interaction_yet' &&
+                'There is not enough recent activity from this sign-in to compare. Keep working for a minute (search, write a note, click around), then check again. This is not a mismatch.'}
+              {decision.reason === 'not_enrolled' &&
+                'This account has no finished behaviour profile yet, so there is nothing to compare with. This is not a mismatch.'}
               {decision.reason === 'model_missing' &&
-                'No verification model is installed on this server, so movement cannot be checked. This is not a mismatch.'}
-              {decision.reason === 'round_not_measurable' &&
-                'That round could not be measured well enough to compare. This is not a mismatch.'}
+                'No verification model is installed on this server, so behaviour cannot be checked. This is not a mismatch.'}
+              {(decision.reason === 'window_not_measurable' || decision.reason === 'no_evidence') &&
+                'Recent activity could not be measured well enough to compare. This is not a mismatch.'}
             </Outcome>
-            <div className="flex flex-wrap gap-2">
-              {fallbackButton}
-              {decision.reason === 'not_enrolled' && (
-                <Button variant="ghost" size="lg" onClick={onSetUpProfile} className="h-11 px-5 text-base">
-                  Set up the movement profile
+            {decision.reason === 'no_interaction_yet' && <NextSample />}
+            <Parts decision={decision} me={me} />
+            {actions(
+              decision.reason === 'no_interaction_yet' ? (
+                checkAgain
+              ) : decision.reason === 'not_enrolled' ? (
+                <Button size="lg" onClick={onSetUpProfile} className="h-11 px-5 text-base">
+                  Set up the profile
                 </Button>
-              )}
-            </div>
+              ) : undefined,
+            )}
           </div>
         )}
 
@@ -211,18 +210,11 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProp
               icon={<Hourglass className={`${ICON} text-uncertain`} aria-hidden="true" />}
               title="Not sure yet"
             >
-              The result sits between the two thresholds.{' '}
-              {roundsLeft > 0 ? 'Another round usually settles it.' : 'There are no rounds left for this check.'}
+              Recent activity sits between the two thresholds. A little more typing or clicking usually settles it.
             </Outcome>
-            <DecisionMeter decision={decision} />
-            <div className="flex flex-wrap gap-2">
-              {roundsLeft > 0 && (
-                <Button size="lg" onClick={() => setStep({ name: 'ready' })} className="h-11 px-5 text-base">
-                  Do another round
-                </Button>
-              )}
-              {fallbackButton}
-            </div>
+            <NextSample />
+            <Parts decision={decision} me={me} />
+            {actions(checkAgain)}
           </div>
         )}
 
@@ -231,20 +223,20 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProp
             <Outcome
               tone="border-destructive/50 bg-destructive/8"
               icon={<ShieldAlert className={`${ICON} text-destructive`} aria-hidden="true" />}
-              title="Movement doesn’t match. Export on hold"
+              title="Doesn’t match this account. Export on hold"
             >
-              That round did not look like the profile recorded for this account. It can happen with a different
-              mouse, a sore hand or a different person. The account is not locked; this export just needs stronger
-              verification.
+              Recent typing or pointer movement did not look like the profile recorded for this account. It can
+              happen with a different keyboard or mouse, an injury, or a different person. The account is not locked;
+              this export just needs stronger verification.
             </Outcome>
-            <DecisionMeter decision={decision} />
-            <div className="flex flex-wrap gap-2">{fallbackButton}</div>
+            <Parts decision={decision} me={me} />
+            {actions()}
           </div>
         )}
 
         {step.name === 'fallback' && (
           <FallbackPanel
-            verificationId={verificationId}
+            verificationId={opened?.verification_id}
             onVerified={async ({ grant, me: updated }) => {
               onMe(updated)
               if (grant) await runExport(grant).catch((e) => (setError(explain(e)), setStep({ name: 'result' })))
@@ -260,11 +252,11 @@ export function ExportFlow({ me, onClose, onMe, onSetUpProfile }: ExportFlowProp
               title="Export released"
             >
               {step.basis === 'behavior'
-                ? 'The movement in that check was consistent with this account’s profile, so the export continued under your existing sign-in.'
+                ? 'Recent activity was consistent with this account’s profile, so the export continued under your existing sign-in without any extra step.'
                 : 'Released after trusted verification with the demo authenticator.'}{' '}
               {step.customers.length} fictional records.
             </Outcome>
-            {step.basis === 'behavior' && decision && <DecisionMeter decision={decision} />}
+            {step.basis === 'behavior' && decision && <Parts decision={decision} me={me} />}
             <div className="flex flex-wrap gap-2">
               <Button size="lg" onClick={() => download(step.customers)} className="h-11 px-5 text-base">
                 <Download aria-hidden="true" />

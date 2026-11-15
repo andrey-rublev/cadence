@@ -122,6 +122,34 @@ class ActionGrant(Base):
     created_at: Mapped[float] = mapped_column(default=now)
 
 
+class PassiveWindow(Base):
+    """A window of ordinary use (pointer strokes or key timing) captured without a task.
+
+    Features are stored; raw events only when the account opted in. Key events hold timing
+    and coarse keyboard zones, never characters.
+    """
+
+    __tablename__ = "passive_windows"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    account_id: Mapped[int] = mapped_column(index=True)
+    modality: Mapped[str] = mapped_column(String(8))  # pointer | keys
+    purpose: Mapped[str] = mapped_column(String(10))  # enroll (during a trusted session) | evidence
+    feature_schema: Mapped[int]
+    values_json: Mapped[str]
+    # SHA-256 of the submitted events: an identical window is never accepted twice.
+    digest: Mapped[str] = mapped_column(String(64))
+    events_z: Mapped[bytes | None] = mapped_column(LargeBinary)
+    duration_ms: Mapped[float]
+    captured_at: Mapped[float] = mapped_column(default=now)
+
+    __table_args__ = (
+        Index("ix_passive_account_modality", "account_id", "modality", "purpose"),
+        Index("ux_passive_account_digest", "account_id", "digest", unique=True),
+    )
+
+
 class SampleFeatures(Base):
     """Derived movement features for a sample. Preferred over raw trajectories for storage."""
 

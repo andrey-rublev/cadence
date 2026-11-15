@@ -45,6 +45,8 @@ const MESSAGES: Record<string, string> = {
   challenge_already_used: 'That round was already submitted. Start a new one.',
   challenge_rate_limited: 'Too many rounds were started in a short time. Wait a few minutes, then continue.',
   payload_too_large: 'That round produced more data than can be sent. Start it again.',
+  window_already_used: 'That stretch of activity was already counted.',
+  too_many_windows: 'Activity is arriving faster than expected; some was skipped.',
 }
 
 /** A plain-language explanation of a failed request, written for the person at the screen. */
