@@ -10,22 +10,23 @@ Cadence learns how an enrolled account owner moves and clicks, compares later in
 
 ## Run it
 
-Needs Python 3.11+ with [`uv`](https://docs.astral.sh/uv/) and Node 20+.
+Needs Python 3.11+ with [`uv`](https://docs.astral.sh/uv/) and Node 20+. From the repo root:
 
 ```bash
-cd backend && uv sync && cd ..
-npm install
+npm run setup
 ```
 
 ```bash
-cd backend && uv run uvicorn cadence.main:app --port 8000
+npm start
 ```
 
-```bash
-npm run dev
-```
+That starts the API and the web app together; Ctrl+C stops both. Open http://localhost:5173 for the product, or http://localhost:5173/collect for volunteer data collection. If the ports are busy: `npm start -- --api-port 8002 --web-port 5175`.
 
-Open http://localhost:5173 for the product, or http://localhost:5173/collect for volunteer data collection.
+| Command | What it does |
+|---|---|
+| `npm run share` | Snapshot this laptop's recordings into `data/collected/` to commit |
+| `npm run typing` | Evaluate the keyboard model on all volunteer typing in `data/collected/` |
+| `npm run typing:calibrate` | The same, then re-set the keyboard thresholds on volunteer data |
 
 Train a model from collected data (see PLAN.md for the sandbox option):
 

@@ -1,7 +1,13 @@
 """Volunteer typing: how the keyboard model does on real people across sessions, and calibration.
 
-    uv run python scripts/typing_eval.py --db ../data/collected/a.db --db ../data/collected/b.db
-    uv run python scripts/typing_eval.py --db ... --calibrate
+From the repo root:
+
+    npm run typing              every database in data/collected/
+    npm run typing:calibrate    the same, then re-threshold the keyboard model
+
+or directly, choosing databases:
+
+    uv run python scripts/typing_eval.py --db ../data/collected/a.db --db b.db
 
 Compares, on participant-held-out scores (same protocol as scripts/train.py):
 - the active keyboard model trained on Aalto, used as it is (nobody here was in its training);
@@ -21,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
-from cadence.core.config import settings
+from cadence.core.config import REPO_ROOT, settings
 from cadence.features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA
 from cadence.passive import passive_model
 from cadence.verifier.artifact import Model, save
@@ -58,12 +64,17 @@ def load_typing(databases: list[Path], include_pilots: bool = False) -> list[Rou
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--db", type=Path, action="append", required=True)
+    parser.add_argument("--db", type=Path, action="append", help="collection database (default: all of data/collected/)")
     parser.add_argument("--calibrate", action="store_true", help="re-threshold the Aalto model on volunteer data")
     parser.add_argument("--include-pilots", action="store_true")
     args = parser.parse_args()
 
-    rounds = load_typing(args.db, args.include_pilots)
+    databases = args.db or sorted((REPO_ROOT / "data" / "collected").glob("*.db"))
+    if not databases:
+        print("No databases found in data/collected/. Copy each laptop's backend/cadence.db there first.")
+        return
+    print("Reading " + ", ".join(p.name for p in databases))
+    rounds = load_typing(databases, args.include_pilots)
     people = sessions_by_person(rounds)
     targets = [p for p, s in people.items() if len(s) >= 2]
     print(f"{len(people)} volunteers ({len(targets)} with two or more sessions), {len(rounds)} typing samples\n")

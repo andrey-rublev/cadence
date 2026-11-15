@@ -73,13 +73,37 @@ On this branch `/collect` is a typing session, not the game (`collect_mode = "ty
 
 **The point is a second session on a different day** (the completion screen asks for it), because same-sitting accuracy is what the Aalto numbers overstate. Another laptop or keyboard helps too.
 
-Share data exactly as on main: stop the API, copy `backend/cadence.db` to `data/collected/<station>.db`, commit. Then:
+Everything runs from the repo root:
 
 ```bash
-cd backend && uv run python scripts/typing_eval.py --db ../data/collected/<station>.db
+npm run setup
 ```
 
-compares the Aalto-trained keyboard model, used as it is, with B0 and M2 trained on the volunteers, all on held-out cross-session scores. With `--calibrate` it keeps the Aalto model but re-chooses its thresholds on the volunteers' cross-session scores and activates that as a new version. It refuses with fewer than 5 volunteers who have two sessions. This is the step that turns "thresholds from a public dataset" into "thresholds measured on our own users".
+```bash
+npm start
+```
+
+`npm start` runs the API and the web app together (Ctrl+C stops both); open http://localhost:5173/collect. If those ports are busy: `npm start -- --api-port 8002 --web-port 5175`.
+
+After collecting, snapshot this laptop's recordings (safe while the API runs) and commit the file it names:
+
+```bash
+npm run share
+```
+
+Then evaluate on every database in `data/collected/`:
+
+```bash
+npm run typing
+```
+
+and, once at least 5 volunteers have two sessions:
+
+```bash
+npm run typing:calibrate
+```
+
+`npm run typing` compares the Aalto-trained keyboard model, used as it is, with B0 and M2 trained on the volunteers, all on held-out cross-session scores. `typing:calibrate` keeps the Aalto model but re-chooses its thresholds on the volunteers' cross-session scores and activates that as a new version. It refuses with fewer than 5 volunteers who have two sessions. This is the step that turns "thresholds from a public dataset" into "thresholds measured on our own users".
 
 ## Known gaps
 
