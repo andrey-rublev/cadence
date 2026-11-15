@@ -99,8 +99,8 @@ export function PracticeSignIns({ pageRecorder }: { pageRecorder: RefObject<Acti
   if (!status.open)
     return (
       <p className="rounded-lg border border-border p-4 text-sm">
-        Cadence is no longer taking practice sign-ins for this connection ({status.samples} of {status.needed} saved). Turn
-        Cadence off and on again to start over.
+        Cadence is no longer taking practice sign-ins for this connection ({status.samples} of {status.needed} saved). To
+        start over, disconnect Northwind on your Cadence home page, then turn Cadence off and back on here.
       </p>
     )
 
