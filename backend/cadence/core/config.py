@@ -68,7 +68,8 @@ class Settings(BaseSettings):
     evidence_rate_limit: int = 60  # evidence tokens per site per minute
     # Short typing (a sign-in) is scored by the login model; below this, typing is not used.
     min_login_keys: int = 12
-    long_window_keys: int = 40  # from here a window is scored by the 50-key model
+    # From here a window is scored by the 50-key model; below it, by the login model (trained on 15-45 keys).
+    long_window_keys: int = 46
 
     retention_days: int = 30
     max_body_bytes: int = 4_000_000

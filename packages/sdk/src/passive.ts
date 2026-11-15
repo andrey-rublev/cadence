@@ -1,4 +1,4 @@
-import { MODIFIER, HIDDEN, zoneOfCode } from './keys'
+import { MODIFIER, zoneOfEvent } from './keys'
 import { DOWN, MOVE, UP, type Sample } from './types'
 
 /** One key event on the wire: [t_ms, kind (1 down, 2 up), zone]. Never a character. */
@@ -98,12 +98,7 @@ export function startPassive({ root, onWindow, onProgress, strokes = 12, keys = 
     if (kind === 1 && (e.repeat || held.has(e.code))) return
     if (kind === 1) held.add(e.code)
     else if (!held.delete(e.code)) return
-    // Secrets keep only their timing: password fields, one-time codes, and anything marked private.
-    const target = e.target as HTMLInputElement | null
-    const secret =
-      target?.tagName === 'INPUT' &&
-      (target.type === 'password' || target.autocomplete === 'one-time-code' || 'cadencePrivate' in target.dataset)
-    const zone = secret ? HIDDEN : zoneOfCode(e.code)
+    const zone = zoneOfEvent(e)
     if (!keyEvents.length) keyOrigin = e.timeStamp
     const t = Math.max(round1(e.timeStamp - keyOrigin), keyEvents.at(-1)?.[0] ?? 0)
     if (t > MAX_WINDOW_MS) {

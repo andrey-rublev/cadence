@@ -26,7 +26,7 @@ from ..features.strokes import K_SCHEMA, strokes
 from ..features.strokes import window_vector as stroke_vector
 from ..passive import passive_profile
 from ..product import CurrentAccount
-from ..setup import learning_open
+from ..setup import learning_open, setup_status
 
 router = APIRouter(prefix="/api", tags=["passive"], dependencies=[Depends(require_client_header)])
 
@@ -163,7 +163,13 @@ def submit_window(body: PassiveBody, account: CurrentAccount, session: CurrentSe
     purpose = "enroll" if learning_open(account, session) else "evidence"
     ingest(db, body, session, purpose=purpose, keep_raw=account.keep_raw, account_id=account.id)
     db.commit()
-    return {"purpose": purpose, "modality": body.modality, "passive": passive_profile(db, account.id, session)}
+    return {
+        "purpose": purpose,
+        "modality": body.modality,
+        "passive": passive_profile(db, account.id, session),
+        "setup": setup_status(db, account),
+        "learning": learning_open(account, session),
+    }
 
 
 @router.post("/collect/passive")

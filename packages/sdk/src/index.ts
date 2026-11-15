@@ -1,3 +1,5 @@
+export { recordActivity, sendEvidence } from './activity'
+export type { Activity, ActivityCounts, ActivityOptions, ActivityRecorder, EvidenceReceipt } from './activity'
 export { runChallenge } from './challenge'
 export type { ChallengeFrame, ChallengeHandlers, ChallengeRun, ChallengeView } from './challenge'
 export { CadenceApiError, createClient } from './client'

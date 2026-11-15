@@ -59,3 +59,15 @@ export function zoneOfCode(code: string): number {
   if (code.startsWith('Digit') && code.length === 6) return CHAR_ZONE.get(code[5]) ?? HIDDEN
   return CHAR_ZONE.get(CODE_CHAR[code] ?? '') ?? HIDDEN
 }
+
+/**
+ * Zone of a key event, or HIDDEN for secrets: password fields, one-time codes, and anything
+ * marked `data-cadence-private` keep only their timing.
+ */
+export function zoneOfEvent(e: KeyboardEvent): number {
+  const target = e.target as HTMLInputElement | null
+  const secret =
+    target?.tagName === 'INPUT' &&
+    (target.type === 'password' || target.autocomplete === 'one-time-code' || 'cadencePrivate' in target.dataset)
+  return secret ? HIDDEN : zoneOfCode(e.code)
+}

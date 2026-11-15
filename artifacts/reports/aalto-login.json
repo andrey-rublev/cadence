@@ -1,0 +1,362 @@
+{
+  "version": "keys-login-m2-20261115-005707",
+  "modality": "keys",
+  "use": "login",
+  "source": "aalto",
+  "model": "M2 pairwise boosting",
+  "selected": {
+    "id": "m2",
+    "name": "M2 pairwise boosting",
+    "reason": "Its paired AUC gain over B0 has a 95% interval above zero."
+  },
+  "window": 50,
+  "probe_keys": [
+    15,
+    45
+  ],
+  "hidden_share": 0.4,
+  "participants": {
+    "total": 1000
+  },
+  "thresholds": {
+    "reject_at": -1.0099937989636563,
+    "accept_at": 1.592398476906935,
+    "target_error": 0.05
+  },
+  "models": [
+    {
+      "counts": {
+        "targets": 1000,
+        "people": 1000,
+        "genuine_attempts": 12035,
+        "impostor_attempts": 240148,
+        "genuine_same_station": 12035,
+        "genuine_decisions": 4344,
+        "impostor_decisions": 86717
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.8406,
+          "low": 0.8337,
+          "high": 0.8477
+        },
+        "eer": {
+          "value": 0.242,
+          "low": 0.235,
+          "high": 0.2494
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.8694,
+          "low": 0.8623,
+          "high": 0.8772
+        },
+        "eer": {
+          "value": 0.2208,
+          "low": 0.2116,
+          "high": 0.23
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.06,
+          "low": 0.0534,
+          "high": 0.0685
+        },
+        "impostor_fallback": {
+          "value": 0.4761,
+          "low": 0.4537,
+          "high": 0.5015
+        },
+        "genuine_accepted": {
+          "value": 0.4945,
+          "low": 0.4714,
+          "high": 0.5171
+        },
+        "genuine_rejected": {
+          "value": 0.0615,
+          "low": 0.0523,
+          "high": 0.0703
+        },
+        "genuine_fallback": {
+          "value": 0.4441,
+          "low": 0.4235,
+          "high": 0.4664
+        },
+        "mean_rounds_genuine": 1.8847
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 240148,
+          "auc": 0.8406
+        },
+        "other": {
+          "impostor_attempts": 0,
+          "auc": null
+        }
+      },
+      "id": "b0",
+      "name": "B0 keystroke distance"
+    },
+    {
+      "counts": {
+        "targets": 1000,
+        "people": 1000,
+        "genuine_attempts": 12035,
+        "impostor_attempts": 240148,
+        "genuine_same_station": 12035,
+        "genuine_decisions": 4344,
+        "impostor_decisions": 86717
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.9323,
+          "low": 0.9275,
+          "high": 0.937
+        },
+        "eer": {
+          "value": 0.1451,
+          "low": 0.1393,
+          "high": 0.1507
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.9616,
+          "low": 0.9577,
+          "high": 0.9651
+        },
+        "eer": {
+          "value": 0.1052,
+          "low": 0.0988,
+          "high": 0.1124
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.061,
+          "low": 0.0549,
+          "high": 0.0679
+        },
+        "impostor_fallback": {
+          "value": 0.1535,
+          "low": 0.1439,
+          "high": 0.1635
+        },
+        "genuine_accepted": {
+          "value": 0.7376,
+          "low": 0.7226,
+          "high": 0.7551
+        },
+        "genuine_rejected": {
+          "value": 0.0608,
+          "low": 0.0528,
+          "high": 0.0688
+        },
+        "genuine_fallback": {
+          "value": 0.2017,
+          "low": 0.1864,
+          "high": 0.2138
+        },
+        "mean_rounds_genuine": 1.4929
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 240148,
+          "auc": 0.9323
+        },
+        "other": {
+          "impostor_attempts": 0,
+          "auc": null
+        }
+      },
+      "auc_gain_over_b0": {
+        "value": 0.0917,
+        "low": 0.0863,
+        "high": 0.0961
+      },
+      "id": "m2",
+      "name": "M2 pairwise boosting"
+    }
+  ],
+  "by_keys": [
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9115,
+        "low": 0.9051,
+        "high": 0.9172
+      },
+      "eer": {
+        "value": 0.1688,
+        "low": 0.1617,
+        "high": 0.1765
+      },
+      "auc_3": {
+        "value": 0.9488,
+        "low": 0.9428,
+        "high": 0.9541
+      },
+      "eer_3": {
+        "value": 0.128,
+        "low": 0.1172,
+        "high": 0.1378
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0572,
+          "low": 0.0515,
+          "high": 0.0646
+        },
+        "impostor_fallback": {
+          "value": 0.217,
+          "low": 0.2031,
+          "high": 0.2306
+        },
+        "genuine_accepted": {
+          "value": 0.6237,
+          "low": 0.6002,
+          "high": 0.6493
+        },
+        "genuine_rejected": {
+          "value": 0.059,
+          "low": 0.047,
+          "high": 0.0733
+        },
+        "genuine_fallback": {
+          "value": 0.3172,
+          "low": 0.2939,
+          "high": 0.3375
+        },
+        "mean_rounds_genuine": 1.5122
+      },
+      "genuine_attempts": 4029,
+      "impostor_attempts": 79981,
+      "keys": [
+        15,
+        24
+      ]
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9345,
+        "low": 0.9284,
+        "high": 0.9393
+      },
+      "eer": {
+        "value": 0.1393,
+        "low": 0.1327,
+        "high": 0.147
+      },
+      "auc_3": {
+        "value": 0.9608,
+        "low": 0.956,
+        "high": 0.9656
+      },
+      "eer_3": {
+        "value": 0.1085,
+        "low": 0.0987,
+        "high": 0.1193
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0576,
+          "low": 0.051,
+          "high": 0.0652
+        },
+        "impostor_fallback": {
+          "value": 0.1533,
+          "low": 0.1428,
+          "high": 0.1662
+        },
+        "genuine_accepted": {
+          "value": 0.71,
+          "low": 0.6864,
+          "high": 0.7342
+        },
+        "genuine_rejected": {
+          "value": 0.0558,
+          "low": 0.044,
+          "high": 0.0671
+        },
+        "genuine_fallback": {
+          "value": 0.2342,
+          "low": 0.2141,
+          "high": 0.2543
+        },
+        "mean_rounds_genuine": 1.4071
+      },
+      "genuine_attempts": 3833,
+      "impostor_attempts": 76560,
+      "keys": [
+        25,
+        34
+      ]
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9504,
+        "low": 0.946,
+        "high": 0.9548
+      },
+      "eer": {
+        "value": 0.1208,
+        "low": 0.114,
+        "high": 0.1276
+      },
+      "auc_3": {
+        "value": 0.9734,
+        "low": 0.9695,
+        "high": 0.9771
+      },
+      "eer_3": {
+        "value": 0.087,
+        "low": 0.0788,
+        "high": 0.0969
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0609,
+          "low": 0.0537,
+          "high": 0.0685
+        },
+        "impostor_fallback": {
+          "value": 0.1039,
+          "low": 0.096,
+          "high": 0.1122
+        },
+        "genuine_accepted": {
+          "value": 0.8134,
+          "low": 0.7948,
+          "high": 0.8336
+        },
+        "genuine_rejected": {
+          "value": 0.0517,
+          "low": 0.0413,
+          "high": 0.0629
+        },
+        "genuine_fallback": {
+          "value": 0.1349,
+          "low": 0.1189,
+          "high": 0.1491
+        },
+        "mean_rounds_genuine": 1.2669
+      },
+      "genuine_attempts": 4173,
+      "impostor_attempts": 83607,
+      "keys": [
+        35,
+        45
+      ]
+    }
+  ],
+  "limitations": [
+    "Enrollment and probes come from the same sitting of copied sentences; real sign-ins on other days are harder.",
+    "Probes are cut from free sentences, not the same email and password typed every time.",
+    "The hidden part simulates a password field (timing only); real passwords are shorter or longer.",
+    "Thresholds were set on Aalto typists; they have not been calibrated on people using Cadence."
+  ]
+}

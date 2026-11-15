@@ -10,7 +10,7 @@ from ..core.db import Db
 from ..core.models import Verification, now
 from ..core.security import CurrentSession, require_client_header
 from ..demo_data import CUSTOMERS
-from ..passive import MODALITIES, decide_passive, passive_model
+from ..passive import MODALITIES, decide_passive, login_model, passive_model
 from ..policy import CONSISTENT, decide
 from ..product import (
     EXPORT_CUSTOMERS,
@@ -87,8 +87,10 @@ def model_summary(account: CurrentAccount) -> dict | None:
 
 @router.get("/passive/models")
 def passive_models(account: CurrentAccount) -> dict:
-    """Summaries of the passive keyboard and pointer models, as their training scripts wrote them."""
-    return {modality: None if (m := passive_model(modality)) is None else m.summary for modality in MODALITIES}
+    """Summaries of the passive keyboard, sign-in typing and pointer models, as their training scripts wrote them."""
+    out = {modality: None if (m := passive_model(modality)) is None else m.summary for modality in MODALITIES}
+    out["login"] = None if (m := login_model()) is None else m.summary
+    return out
 
 
 @router.get("/verifications")

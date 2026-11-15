@@ -29,9 +29,13 @@ dist/
 data/external/
 data/volunteer/
 
-# Model artifacts are reproducible from scripts
+# Model artifacts are reproducible from scripts. The deployed passive models (about 120 KB
+# each) are committed so a fresh clone works without downloading the datasets.
 artifacts/models/*
 !artifacts/models/.gitkeep
+!artifacts/models/keys/
+!artifacts/models/keys-login/
+!artifacts/models/pointer/
 
 # Tooling
 .playwright-mcp/

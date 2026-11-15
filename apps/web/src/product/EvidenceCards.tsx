@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
-import { isPassive, MODALITY_LABEL, OUTCOME_LABEL, type Modality, type VerificationRecord } from '@/lib/product'
+import { MODALITY_LABEL, type Modality } from '@/lib/product'
 
 /** A measured value and its 95% participant-bootstrap range. */
 interface Interval {
@@ -29,6 +29,39 @@ interface PassiveModelSummary {
   models: ModelResult[]
   selected: { id: string; name: string; reason: string }
   limitations: string[]
+  /** Sign-in typing model only (scripts/aalto.py --login). */
+  probe_keys?: [number, number]
+  by_keys?: { keys: [number, number]; auc: Interval; eer: Interval }[]
+}
+
+type Summaries = Record<Modality, PassiveModelSummary | null> & { login?: PassiveModelSummary | null }
+
+/** The model for the short, partly hidden typing of a sign-in on a partner site. */
+function LoginSection({ summary }: { summary: PassiveModelSummary }) {
+  return (
+    <div className="grid gap-3">
+      <h3 className="font-semibold">Typing at sign-in</h3>
+      <p className="font-mono text-sm text-muted-foreground">
+        {summary.selected.name} · {summary.version} · {summary.participants.total} people from Aalto 136M Keystrokes ·
+        one sign-in is {summary.probe_keys?.[0]}–{summary.probe_keys?.[1]} keys, password part timing only
+      </p>
+      <Comparison models={summary.models} selected={summary.selected.id} sample="sign-in" />
+      {summary.by_keys && (
+        <ul className="grid gap-1 text-sm">
+          {summary.by_keys.map((band) => (
+            <li key={band.keys.join('-')}>
+              {band.keys[0]}–{band.keys[1]} keys: AUC {decimal(band.auc.value)}, equal error {percent(band.eer.value)}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ul className="grid list-disc gap-1 rounded-lg border border-uncertain/50 bg-uncertain/8 p-4 pl-8 text-sm" role="note">
+        {summary.limitations.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 const DATASET: Record<Modality, { name: string; unit: string; credit: ReactNode }> = {
@@ -179,9 +212,9 @@ function ModelSection({ modality, summary }: { modality: Modality; summary: Pass
 
 /** The passive models and how they did on people they never saw, straight from their eval summaries. */
 export function PassiveModelsCard() {
-  const [models, setModels] = useState<Record<Modality, PassiveModelSummary | null> | null | undefined>(undefined)
+  const [models, setModels] = useState<Summaries | null | undefined>(undefined)
   useEffect(() => {
-    api.request<Record<Modality, PassiveModelSummary | null>>('GET', '/passive/models').then(setModels, () => setModels(null))
+    api.request<Summaries>('GET', '/passive/models').then(setModels, () => setModels(null))
   }, [])
 
   return (
@@ -191,10 +224,11 @@ export function PassiveModelsCard() {
       {models && (
         <>
           <p className="text-muted-foreground">
-            Both models were trained on public research datasets and tested on people they never saw. Ranges are 95%
-            intervals from resampling people. Neither has been calibrated on people using this app yet.
+            Every model was trained on a public research dataset and tested on people it never saw. Ranges are 95%
+            intervals from resampling people. None has been calibrated on people using Cadence yet.
           </p>
           <ModelSection modality="keys" summary={models.keys} />
+          {models.login && <LoginSection summary={models.login} />}
           <ModelSection modality="pointer" summary={models.pointer} />
         </>
       )}
@@ -202,71 +236,3 @@ export function PassiveModelsCard() {
   )
 }
 
-function Similarity({ record }: { record: VerificationRecord }) {
-  const d = record.decision
-  if (isPassive(d)) {
-    const scored = d.parts.filter((p) => p.score !== null)
-    if (!scored.length) return <>none</>
-    return (
-      <span className="grid gap-0.5">
-        {scored.map((p) => (
-          <span key={p.modality}>
-            {p.modality === 'keys' ? 'Typing' : 'Pointer'} {p.score!.toFixed(2)} ({p.reject_at?.toFixed(2)} /{' '}
-            {p.accept_at?.toFixed(2)})
-          </span>
-        ))}
-      </span>
-    )
-  }
-  return <>{d.score === null ? 'none' : `${d.score.toFixed(2)} (${d.reject_at?.toFixed(2)} / ${d.accept_at?.toFixed(2)})`}</>
-}
-
-export function HistoryCard({ refreshKey }: { refreshKey: number }) {
-  const [records, setRecords] = useState<VerificationRecord[]>([])
-  useEffect(() => {
-    api
-      .request<{ verifications: VerificationRecord[] }>('GET', '/verifications')
-      .then((r) => setRecords(r.verifications))
-  }, [refreshKey])
-
-  return (
-    <Card title="Recent checks on this account">
-      {records.length === 0 ? (
-        <p className="text-muted-foreground">No protected action has been attempted yet. Try an export.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <Table className="min-w-[560px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>When</TableHead>
-                <TableHead>Check</TableHead>
-                <TableHead>Similarity (thresholds)</TableHead>
-                <TableHead>Released by</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {records.map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell className="font-mono text-sm">
-                    {new Date(record.at * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                  </TableCell>
-                  <TableCell>{OUTCOME_LABEL[record.decision.outcome]}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    <Similarity record={record} />
-                  </TableCell>
-                  <TableCell>
-                    {record.resolved_by === 'behavior'
-                      ? 'Typing and movement'
-                      : record.resolved_by === 'fallback'
-                        ? 'Demo authenticator'
-                        : 'Not released'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </Card>
-  )
-}

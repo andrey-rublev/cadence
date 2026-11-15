@@ -1,0 +1,181 @@
+{
+  "version": "pointer-m2-20261114-210853",
+  "modality": "pointer",
+  "source": "sapimouse",
+  "model": "M2-K pairwise boosting",
+  "selected": {
+    "id": "m2",
+    "name": "M2-K pairwise boosting",
+    "reason": "Its paired AUC gain over B0 has a 95% interval above zero."
+  },
+  "window": 12,
+  "participants": {
+    "total": 120
+  },
+  "thresholds": {
+    "reject_at": -1.3390197030751612,
+    "accept_at": 1.2446745805354482,
+    "target_error": 0.05
+  },
+  "models": [
+    {
+      "counts": {
+        "targets": 120,
+        "people": 120,
+        "genuine_attempts": 364,
+        "impostor_attempts": 8372,
+        "genuine_same_station": 364,
+        "genuine_decisions": 161,
+        "impostor_decisions": 3703
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.6887,
+          "low": 0.6641,
+          "high": 0.7184
+        },
+        "eer": {
+          "value": 0.3632,
+          "low": 0.3373,
+          "high": 0.3899
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.7392,
+          "low": 0.6978,
+          "high": 0.784
+        },
+        "eer": {
+          "value": 0.3133,
+          "low": 0.2652,
+          "high": 0.357
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0513,
+          "low": 0.0334,
+          "high": 0.0713
+        },
+        "impostor_fallback": {
+          "value": 0.7521,
+          "low": 0.6955,
+          "high": 0.8042
+        },
+        "genuine_accepted": {
+          "value": 0.2174,
+          "low": 0.1594,
+          "high": 0.2921
+        },
+        "genuine_rejected": {
+          "value": 0.0683,
+          "low": 0.0347,
+          "high": 0.1129
+        },
+        "genuine_fallback": {
+          "value": 0.7143,
+          "low": 0.6428,
+          "high": 0.7785
+        },
+        "mean_rounds_genuine": 1.9255
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 0,
+          "auc": null
+        },
+        "other": {
+          "impostor_attempts": 8372,
+          "auc": 0.6887
+        }
+      },
+      "id": "b0",
+      "name": "B0-K distance"
+    },
+    {
+      "counts": {
+        "targets": 120,
+        "people": 120,
+        "genuine_attempts": 364,
+        "impostor_attempts": 8372,
+        "genuine_same_station": 364,
+        "genuine_decisions": 161,
+        "impostor_decisions": 3703
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.8187,
+          "low": 0.7955,
+          "high": 0.8394
+        },
+        "eer": {
+          "value": 0.2585,
+          "low": 0.2331,
+          "high": 0.2824
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.8844,
+          "low": 0.8548,
+          "high": 0.9114
+        },
+        "eer": {
+          "value": 0.2069,
+          "low": 0.1688,
+          "high": 0.2472
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0521,
+          "low": 0.0378,
+          "high": 0.0693
+        },
+        "impostor_fallback": {
+          "value": 0.4807,
+          "low": 0.4279,
+          "high": 0.5307
+        },
+        "genuine_accepted": {
+          "value": 0.2857,
+          "low": 0.2104,
+          "high": 0.3561
+        },
+        "genuine_rejected": {
+          "value": 0.0807,
+          "low": 0.0436,
+          "high": 0.1235
+        },
+        "genuine_fallback": {
+          "value": 0.6335,
+          "low": 0.5587,
+          "high": 0.7175
+        },
+        "mean_rounds_genuine": 1.8075
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 0,
+          "auc": null
+        },
+        "other": {
+          "impostor_attempts": 8372,
+          "auc": 0.8187
+        }
+      },
+      "auc_gain_over_b0": {
+        "value": 0.13,
+        "low": 0.1089,
+        "high": 0.1509
+      },
+      "id": "m2",
+      "name": "M2-K pairwise boosting"
+    }
+  ],
+  "limitations": [
+    "Trained and thresholded on SapiMouse: free-form use, both sessions on the same day, each person on their own computer.",
+    "Thresholds have not been calibrated on people using this app or sharing a computer."
+  ]
+}

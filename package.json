@@ -7,8 +7,8 @@
     "start": "node scripts/start.mjs",
     "share": "uv run --project backend python backend/scripts/share_data.py",
     "dev": "npm run dev -w @cadence/web",
-    "build": "npm run build -w @cadence/web",
-    "typecheck": "npm run typecheck -w @cadence/sdk && npm run build -w @cadence/web",
+    "build": "npm run build -w @cadence/web && npm run build -w @cadence/partner",
+    "typecheck": "npm run typecheck -w @cadence/sdk && npm run build -w @cadence/web && npm run build -w @cadence/partner",
     "typing": "uv run --project backend python backend/scripts/typing_eval.py",
     "typing:calibrate": "uv run --project backend python backend/scripts/typing_eval.py --calibrate"
   }

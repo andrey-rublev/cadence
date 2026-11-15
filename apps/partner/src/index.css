@@ -1,0 +1,84 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+  Northwind CRM: a conventional business tool, deliberately unlike Cadence's own look.
+  Deep spruce chrome, a marigold brand mark, plain system type.
+*/
+@theme inline {
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: 'Segoe UI Variable Display', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chrome: var(--chrome);
+  --color-chrome-foreground: var(--chrome-foreground);
+  --color-marigold: var(--marigold);
+  --color-good: var(--good);
+  --color-unsure: var(--unsure);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: #f4f6f5;
+  --foreground: #14211f;
+  --card: #ffffff;
+  --card-foreground: #14211f;
+  --popover: #ffffff;
+  --popover-foreground: #14211f;
+  --primary: #12706b;
+  --primary-foreground: #ffffff;
+  --secondary: #e4ecea;
+  --secondary-foreground: #14211f;
+  --muted: #edf1f0;
+  --muted-foreground: #4f5f5c;
+  --accent: #e4ecea;
+  --accent-foreground: #14211f;
+  --destructive: #b42318;
+  --border: #d5dedc;
+  --input: #c3cfcc;
+  --ring: #12706b;
+  --chrome: #0f3b3a;
+  --chrome-foreground: #e7f0ee;
+  --marigold: #f0b450;
+  --good: #1f7a45;
+  --unsure: #9a6200;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-heading tracking-tight;
+  }
+}

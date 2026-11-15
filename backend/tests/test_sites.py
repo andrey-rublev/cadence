@@ -1,4 +1,4 @@
-﻿"""Cadence as a second factor for another site: linking, evidence from the partner's page,
+"""Cadence as a second factor for another site: linking, evidence from the partner's page,
 server-to-server checks, verifying another way, and learning from verified checks.
 
 The keyboard models here are fitted on two SYNTHETIC typists: these tests check wiring and

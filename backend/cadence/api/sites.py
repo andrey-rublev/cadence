@@ -29,7 +29,7 @@ from ..core.db import Db
 from ..core.models import Account, EvidenceToken, LinkCode, PassiveWindow, Site, SiteCheck, SiteLink, now
 from ..core.security import require_client_header
 from ..passive import MODALITIES, decide_evidence, evidence_windows, recommend_test, window_digest
-from ..policy import CONSISTENT
+from ..policy import CONSISTENT, INCONSISTENT
 from ..product import CurrentAccount
 from ..setup import site_session
 from .passive import Activity, check_activity
@@ -350,9 +350,13 @@ def _open_check(db: Session, check_id: str) -> SiteCheck:
 
 
 @people.get("/stepup/{check_id}")
-def stepup_info(check_id: str, db: Db) -> dict:
+def stepup_info(check_id: str, db: Db, return_to: str | None = None) -> dict:
     check = _open_check(db, check_id)
     site = db.get(Site, check.site_id)
+    # Only ever send the person back to the site that asked.
+    allowed = site is not None and return_to is not None and any(
+        return_to == origin or return_to.startswith(origin + "/") for origin in json.loads(site.origins_json)
+    )
     account = db.get(Account, check.account_id)
     view = check_view(db, check)
     return {
@@ -366,6 +370,7 @@ def stepup_info(check_id: str, db: Db) -> dict:
         "resolved_by": check.resolved_by,
         "expired": view["expired"],
         "tests_left": max(0, MAX_TESTS - check.stepup_tests),
+        "return_to": return_to if allowed else None,
         "recommendation": recommend_test(db, check.account_id),
     }
 
@@ -388,8 +393,10 @@ def stepup_test(check_id: str, body: Activity, db: Db) -> dict:
     decision = decide_evidence(db, check.account_id, windows)
     if decision.outcome == CONSISTENT:
         check.resolved_by, check.resolved_at = "test", now()
-        # Both the original evidence and the test now belong to a verified sitting.
-        check.windows_json = json.dumps(json.loads(check.windows_json) + windows)
+        # The test is learned. The evidence that triggered the check is learned too, unless it
+        # looked like someone else: one bad sample in a profile hurts every later check.
+        original = [] if json.loads(check.decision_json)["outcome"] == INCONSISTENT else json.loads(check.windows_json)
+        check.windows_json = json.dumps(original + windows)
         learn(db, check)
     db.commit()
     return {
@@ -432,6 +439,8 @@ def stepup_verify(check_id: str, body: StepUpBody, db: Db) -> dict:
         db.commit()
         raise HTTPException(400, "code_incorrect")
     check.resolved_by, check.resolved_at, check.stepup_code_hash = "fallback", now(), None
+    if json.loads(check.decision_json)["outcome"] == INCONSISTENT:
+        check.windows_json = "[]"  # confirmed, but it did not look like them: keep it out of the profile
     learned = learn(db, check)
     db.commit()
     return {"resolved": True, "resolved_by": "fallback", "learned_windows": learned, "demo_only": True}

@@ -22,15 +22,73 @@ export interface PassiveStatus {
   model: { version: string; source: string } | null
 }
 
+export interface SetupStep {
+  done: number
+  needed: number
+}
+
+/** Cadence setup on the Cadence site (backend/cadence/setup.py). */
+export interface SetupStatus {
+  complete: boolean
+  steps: { clicks: SetupStep; typing: SetupStep; sign_ins: SetupStep }
+}
+
 export interface Me {
   username: string
   consent: boolean
   keep_raw: boolean
   trusted: boolean
+  /** Activity on the Cadence site currently builds the profile (setup, or a trusted session). */
+  learning: boolean
+  setup: SetupStatus
   profile: Profile
   passive: Record<Modality, PassiveStatus>
   model: { version: string; source: 'volunteer' | 'synthetic' } | null
   retention_days: number
+}
+
+/** A check a partner site asked for (backend/cadence/api/sites.py). */
+export interface SiteCheckRecord {
+  id: string
+  site: string
+  action: string
+  at: number
+  resolved_by: 'behavior' | 'test' | 'fallback' | null
+  learned: boolean
+  decision: PassiveDecision
+}
+
+export interface MySites {
+  sites: { id: number; name: string; since: number }[]
+  checks: SiteCheckRecord[]
+}
+
+export interface TestOption {
+  modality: Modality
+  /** How far this person's own samples sit above the accept threshold, in threshold gaps. */
+  margin: number
+  own_samples_clear: number
+  samples: number
+}
+
+export interface StepUpInfo {
+  site: string
+  username: string
+  action: string
+  outcome: Outcome
+  reason: PassiveReason | null
+  parts: PassivePart[]
+  resolved: boolean
+  resolved_by: SiteCheckRecord['resolved_by']
+  expired: boolean
+  tests_left: number
+  return_to: string | null
+  recommendation: { recommended: Modality | null; options: TestOption[] }
+}
+
+export const ACTION_LABEL: Record<string, string> = {
+  sign_in: 'Sign-in',
+  export_customers: 'Export customer records',
 }
 
 export type Outcome = 'CONSISTENT' | 'UNCERTAIN' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE'
@@ -54,6 +112,10 @@ export interface PassivePart {
   windows: number
   enrollment_windows: number
   model_version: string | null
+  /** standard: 50-key / 12-click windows; login: sign-in length typing (its own model). */
+  use?: 'standard' | 'login'
+  /** Keys or clicks in the scored evidence. */
+  amount?: number
 }
 
 export interface PassiveDecision {

@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
-import type { Me, Modality, PassiveStatus } from '@/lib/product'
+import type { Me, Modality, PassiveStatus, SetupStatus } from '@/lib/product'
 
 export const STROKES_PER_WINDOW = 12
 export const KEYS_PER_WINDOW = 50
@@ -80,15 +80,19 @@ export function PassiveProvider({ me, setMe, root, children }: ProviderProps) {
     if (!running || !root.current) return
     const send = (window: PassiveWindow) =>
       api
-        .request<{ purpose: 'enroll' | 'evidence'; modality: Modality; passive: Record<Modality, PassiveStatus> }>(
-          'POST',
-          '/passive',
-          window,
-        )
+        .request<{
+          purpose: 'enroll' | 'evidence'
+          modality: Modality
+          passive: Record<Modality, PassiveStatus>
+          setup: SetupStatus
+          learning: boolean
+        }>('POST', '/passive', window)
         .then(
           (saved) => {
             setLast({ modality: saved.modality, purpose: saved.purpose })
-            setMe((current) => (current ? { ...current, passive: saved.passive } : current))
+            setMe((current) =>
+              current ? { ...current, passive: saved.passive, setup: saved.setup, learning: saved.learning } : current,
+            )
           },
           // A thin or duplicate window is not counted; capture carries on, and the UI says so.
           (error: unknown) =>
@@ -207,7 +211,7 @@ export function CaptureIndicator({ me, onOpenProfile }: { me: Me; onOpenProfile:
         <span className={`relative inline-flex size-2 rounded-full ${running ? 'bg-primary' : 'bg-muted-foreground'}`} />
       </span>
       <span>
-        {running ? (me.trusted ? 'Learning your rhythm' : 'Checking quietly') : 'Paused'}
+        {running ? (me.learning ? 'Learning your rhythm' : 'Checking quietly') : 'Paused'}
         <span className="sr-only">
           {running && `, ${progress.keys} of ${KEYS_PER_WINDOW} keys and ${progress.strokes} of ${STROKES_PER_WINDOW} clicks towards the next sample`}
         </span>
