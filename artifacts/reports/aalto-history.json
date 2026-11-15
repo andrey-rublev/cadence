@@ -1,0 +1,430 @@
+{
+  "version": "keys-history-m2-20261115-020831",
+  "modality": "keys",
+  "use": "login_history",
+  "source": "aalto",
+  "model": "M2 pairwise boosting, earlier sign-ins as the template",
+  "combine": "mean of the sign-in model's score against the profile and this model's score against earlier sign-ins",
+  "earlier_sign_ins": {
+    "min": 3,
+    "max": 5
+  },
+  "probe_keys": [
+    15,
+    45
+  ],
+  "hidden_share": 0.4,
+  "participants": {
+    "total": 1000
+  },
+  "thresholds": {
+    "reject_at": -0.9375631927694419,
+    "accept_at": 1.436072889092156,
+    "target_error": 0.05,
+    "applies_to": "combined score"
+  },
+  "results": [
+    {
+      "counts": {
+        "targets": 1000,
+        "people": 1000,
+        "genuine_attempts": 12035,
+        "impostor_attempts": 240148,
+        "genuine_same_station": 12035,
+        "genuine_decisions": 4344,
+        "impostor_decisions": 86717
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.9322,
+          "low": 0.9274,
+          "high": 0.9369
+        },
+        "eer": {
+          "value": 0.1441,
+          "low": 0.1387,
+          "high": 0.1505
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.9615,
+          "low": 0.9576,
+          "high": 0.9649
+        },
+        "eer": {
+          "value": 0.1052,
+          "low": 0.0989,
+          "high": 0.113
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0611,
+          "low": 0.0552,
+          "high": 0.068
+        },
+        "impostor_fallback": {
+          "value": 0.1531,
+          "low": 0.1437,
+          "high": 0.1628
+        },
+        "genuine_accepted": {
+          "value": 0.7383,
+          "low": 0.7215,
+          "high": 0.7551
+        },
+        "genuine_rejected": {
+          "value": 0.0603,
+          "low": 0.0523,
+          "high": 0.068
+        },
+        "genuine_fallback": {
+          "value": 0.2014,
+          "low": 0.1859,
+          "high": 0.2152
+        },
+        "mean_rounds_genuine": 1.4942
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 240148,
+          "auc": 0.9322
+        },
+        "other": {
+          "impostor_attempts": 0,
+          "auc": null
+        }
+      },
+      "id": "login",
+      "name": "Sign-in model alone (today)"
+    },
+    {
+      "counts": {
+        "targets": 1000,
+        "people": 1000,
+        "genuine_attempts": 12035,
+        "impostor_attempts": 240148,
+        "genuine_same_station": 12035,
+        "genuine_decisions": 4344,
+        "impostor_decisions": 86717
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.9186,
+          "low": 0.9132,
+          "high": 0.9245
+        },
+        "eer": {
+          "value": 0.1616,
+          "low": 0.1545,
+          "high": 0.1677
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.9482,
+          "low": 0.9431,
+          "high": 0.9534
+        },
+        "eer": {
+          "value": 0.1253,
+          "low": 0.1174,
+          "high": 0.1327
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0612,
+          "low": 0.0555,
+          "high": 0.0678
+        },
+        "impostor_fallback": {
+          "value": 0.1857,
+          "low": 0.1747,
+          "high": 0.198
+        },
+        "genuine_accepted": {
+          "value": 0.6761,
+          "low": 0.6575,
+          "high": 0.6952
+        },
+        "genuine_rejected": {
+          "value": 0.0608,
+          "low": 0.0522,
+          "high": 0.0692
+        },
+        "genuine_fallback": {
+          "value": 0.2631,
+          "low": 0.2483,
+          "high": 0.2814
+        },
+        "mean_rounds_genuine": 1.5948
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 240148,
+          "auc": 0.9186
+        },
+        "other": {
+          "impostor_attempts": 0,
+          "auc": null
+        }
+      },
+      "auc_gain_over_b0": {
+        "value": -0.0136,
+        "low": -0.016,
+        "high": -0.0109
+      },
+      "id": "history_3",
+      "name": "Earlier sign-ins only, 3 earlier"
+    },
+    {
+      "counts": {
+        "targets": 1000,
+        "people": 1000,
+        "genuine_attempts": 12035,
+        "impostor_attempts": 240148,
+        "genuine_same_station": 12035,
+        "genuine_decisions": 4344,
+        "impostor_decisions": 86717
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.9327,
+          "low": 0.9278,
+          "high": 0.9374
+        },
+        "eer": {
+          "value": 0.1456,
+          "low": 0.1394,
+          "high": 0.152
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.9602,
+          "low": 0.956,
+          "high": 0.9642
+        },
+        "eer": {
+          "value": 0.1082,
+          "low": 0.1015,
+          "high": 0.1154
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0609,
+          "low": 0.0548,
+          "high": 0.0684
+        },
+        "impostor_fallback": {
+          "value": 0.1467,
+          "low": 0.1369,
+          "high": 0.157
+        },
+        "genuine_accepted": {
+          "value": 0.7353,
+          "low": 0.7192,
+          "high": 0.752
+        },
+        "genuine_rejected": {
+          "value": 0.0622,
+          "low": 0.0535,
+          "high": 0.0706
+        },
+        "genuine_fallback": {
+          "value": 0.2026,
+          "low": 0.1882,
+          "high": 0.2169
+        },
+        "mean_rounds_genuine": 1.4942
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 240148,
+          "auc": 0.9327
+        },
+        "other": {
+          "impostor_attempts": 0,
+          "auc": null
+        }
+      },
+      "auc_gain_over_b0": {
+        "value": 0.0005,
+        "low": -0.0008,
+        "high": 0.0017
+      },
+      "id": "combined_3",
+      "name": "Combined, 3 earlier"
+    },
+    {
+      "counts": {
+        "targets": 1000,
+        "people": 1000,
+        "genuine_attempts": 12035,
+        "impostor_attempts": 240148,
+        "genuine_same_station": 12035,
+        "genuine_decisions": 4344,
+        "impostor_decisions": 86717
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.9269,
+          "low": 0.922,
+          "high": 0.9318
+        },
+        "eer": {
+          "value": 0.152,
+          "low": 0.1456,
+          "high": 0.1577
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.9559,
+          "low": 0.9518,
+          "high": 0.9599
+        },
+        "eer": {
+          "value": 0.1142,
+          "low": 0.1078,
+          "high": 0.1205
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.061,
+          "low": 0.0556,
+          "high": 0.068
+        },
+        "impostor_fallback": {
+          "value": 0.1644,
+          "low": 0.1543,
+          "high": 0.1749
+        },
+        "genuine_accepted": {
+          "value": 0.7093,
+          "low": 0.692,
+          "high": 0.7278
+        },
+        "genuine_rejected": {
+          "value": 0.0573,
+          "low": 0.0489,
+          "high": 0.0662
+        },
+        "genuine_fallback": {
+          "value": 0.2334,
+          "low": 0.2181,
+          "high": 0.2488
+        },
+        "mean_rounds_genuine": 1.5474
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 240148,
+          "auc": 0.9269
+        },
+        "other": {
+          "impostor_attempts": 0,
+          "auc": null
+        }
+      },
+      "auc_gain_over_b0": {
+        "value": -0.0053,
+        "low": -0.0071,
+        "high": -0.0033
+      },
+      "id": "history_5",
+      "name": "Earlier sign-ins only, 5 earlier"
+    },
+    {
+      "counts": {
+        "targets": 1000,
+        "people": 1000,
+        "genuine_attempts": 12035,
+        "impostor_attempts": 240148,
+        "genuine_same_station": 12035,
+        "genuine_decisions": 4344,
+        "impostor_decisions": 86717
+      },
+      "one_round": {
+        "auc": {
+          "value": 0.9341,
+          "low": 0.9295,
+          "high": 0.9385
+        },
+        "eer": {
+          "value": 0.1424,
+          "low": 0.1367,
+          "high": 0.1487
+        }
+      },
+      "three_rounds": {
+        "auc": {
+          "value": 0.9618,
+          "low": 0.958,
+          "high": 0.9653
+        },
+        "eer": {
+          "value": 0.1065,
+          "low": 0.1001,
+          "high": 0.1131
+        }
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0611,
+          "low": 0.0551,
+          "high": 0.0681
+        },
+        "impostor_fallback": {
+          "value": 0.1456,
+          "low": 0.1365,
+          "high": 0.1552
+        },
+        "genuine_accepted": {
+          "value": 0.7419,
+          "low": 0.7259,
+          "high": 0.7593
+        },
+        "genuine_rejected": {
+          "value": 0.0615,
+          "low": 0.0532,
+          "high": 0.0694
+        },
+        "genuine_fallback": {
+          "value": 0.1966,
+          "low": 0.1834,
+          "high": 0.21
+        },
+        "mean_rounds_genuine": 1.486
+      },
+      "stations": {
+        "same": {
+          "impostor_attempts": 240148,
+          "auc": 0.9341
+        },
+        "other": {
+          "impostor_attempts": 0,
+          "auc": null
+        }
+      },
+      "auc_gain_over_b0": {
+        "value": 0.0019,
+        "low": 0.001,
+        "high": 0.0029
+      },
+      "id": "combined_5",
+      "name": "Combined, 5 earlier"
+    }
+  ],
+  "combination_helps": false,
+  "limitations": [
+    "Aalto has no repeated text, so earlier sign-ins are different sentences; real sign-ins repeat the same email and password.",
+    "Everything comes from one sitting of copied sentences; real sign-ins happen on different days.",
+    "The earlier sign-ins and the 50-key profile come from the same half of each typist's sentences.",
+    "Thresholds were set on Aalto typists; they have not been calibrated on people using Cadence."
+  ]
+}

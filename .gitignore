@@ -35,6 +35,7 @@ artifacts/models/*
 !artifacts/models/.gitkeep
 !artifacts/models/keys/
 !artifacts/models/keys-login/
+!artifacts/models/keys-history/
 !artifacts/models/pointer/
 
 # Tooling

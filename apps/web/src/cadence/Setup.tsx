@@ -1,4 +1,4 @@
-import { Check, Keyboard, LogIn, MousePointerClick, ShieldCheck } from 'lucide-react'
+import { Check, Keyboard, MousePointerClick, ShieldCheck } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -10,13 +10,12 @@ import { usePassive } from '@/product/PassiveCapture'
 
 import { SentenceTest, TargetTest } from './tests'
 
-type StepId = 'consent' | 'clicks' | 'typing' | 'sign_ins'
+type StepId = 'consent' | 'clicks' | 'typing'
 
 const STEPS: { id: StepId; title: string; icon: ReactNode; time: string }[] = [
   { id: 'consent', title: 'Agree to recording', icon: <ShieldCheck aria-hidden="true" />, time: '20 s' },
   { id: 'clicks', title: 'Click test', icon: <MousePointerClick aria-hidden="true" />, time: 'about 40 s' },
   { id: 'typing', title: 'Typing test', icon: <Keyboard aria-hidden="true" />, time: 'about 2 min' },
-  { id: 'sign_ins', title: 'Sign in again', icon: <LogIn aria-hidden="true" />, time: 'two more times' },
 ]
 
 const done = (s: SetupStep) => s.done >= s.needed
@@ -24,8 +23,7 @@ const done = (s: SetupStep) => s.done >= s.needed
 function currentStep(me: Me): StepId {
   if (!me.consent) return 'consent'
   if (!done(me.setup.steps.clicks)) return 'clicks'
-  if (!done(me.setup.steps.typing)) return 'typing'
-  return 'sign_ins'
+  return 'typing'
 }
 
 function stepState(id: StepId, me: Me): string {
@@ -35,7 +33,7 @@ function stepState(id: StepId, me: Me): string {
 }
 
 /** Three short steps on the Cadence site collect what partner sites will be checked against. */
-export function Setup({ me, onMe, onSignOut }: { me: Me; onMe: (me: Me) => void; onSignOut: () => void }) {
+export function Setup({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const active = currentStep(me)
   const [chosen, setChosen] = useState<StepId | null>(null)
   const step = chosen ?? active
@@ -46,8 +44,8 @@ export function Setup({ me, onMe, onSignOut }: { me: Me; onMe: (me: Me) => void;
         <p className="font-mono text-sm text-muted-foreground">Set up Cadence · {me.username}</p>
         <h1 className="text-4xl font-extrabold sm:text-5xl">Teach Cadence how you type and click.</h1>
         <p className="max-w-prose text-lg text-muted-foreground">
-          About three minutes here, then two quick sign-ins later. After that, sites that use Cadence check you from the
-          sign-in you were doing anyway.
+          About three minutes. Then, on each site you protect with Cadence, you type that site’s own sign-in a few
+          times. After that, the site checks you from the sign-in you were doing anyway.
         </p>
       </div>
 
@@ -93,7 +91,6 @@ export function Setup({ me, onMe, onSignOut }: { me: Me; onMe: (me: Me) => void;
           {step === 'consent' && <ConsentStep onMe={onMe} />}
           {step === 'clicks' && <ClickStep me={me} />}
           {step === 'typing' && <TypingStep me={me} />}
-          {step === 'sign_ins' && <SignInStep me={me} onSignOut={onSignOut} />}
         </section>
       </div>
     </div>
@@ -209,29 +206,6 @@ function TypingStep({ me }: { me: Me }) {
           Keys towards the next sample: <span className="font-mono">{progress.keys} / 50</span>
         </p>
       </div>
-    </>
-  )
-}
-
-function SignInStep({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
-  const step = me.setup.steps.sign_ins
-  const left = Math.max(0, step.needed - step.done)
-  return (
-    <>
-      <div className="grid gap-1">
-        <h2 className="text-2xl font-bold">Sign in again, {left === 1 ? 'once more' : `${left} more times`}</h2>
-        <p className="max-w-prose text-muted-foreground">
-          One sitting is not enough: people type a little differently from one sign-in to the next, and that is what
-          partner sites will see. Sign out, then sign back in. Type your username and password yourself rather than
-          using autofill, because the typing on the sign-in form is what counts. Later today or tomorrow is even better
-          than right away.
-        </p>
-      </div>
-      <ServerProgress label="Sign-ins with typing" step={step} />
-      <Button size="lg" onClick={onSignOut} className="h-11 justify-self-start px-5 text-base">
-        <LogIn aria-hidden="true" />
-        Sign out and sign back in
-      </Button>
     </>
   )
 }

@@ -123,21 +123,29 @@ def to_short_rounds(
     for pid, d in data.items():
         for i, w in enumerate(windows(d["enroll"], WINDOW)):
             rounds.append(Round(pid, "", f"{pid}:enroll", i, window_vector(w), pid))
-        presses, i = d["probe"], 0
-        while True:
-            size = rng.randint(low, high)
-            typing = [p for p in presses if p[2] != MODIFIER]
-            if len(typing) < size:
-                break
-            cut = presses.index(typing[size - 1]) + 1
-            window, presses = presses[:cut], presses[cut:]
-            secret_from = int(len(window) * (1 - hidden_share))
-            window = window[:secret_from] + [(d0, u0, HIDDEN) for d0, u0, _ in window[secret_from:]]
-            rounds.append(Round(pid, "", f"{pid}:probe", 1_000_000 + i, window_vector(window), pid))
+        for i, (vector, size) in enumerate(cut_short(d["probe"], rng, low, high, hidden_share)):
+            rounds.append(Round(pid, "", f"{pid}:probe", 1_000_000 + i, vector, pid))
             PROBE_KEYS[(pid, 1_000_000 + i)] = size
-            i += 1
     people = sessions_by_person(rounds)
     return [r for r in rounds if len(people[r.participant]) == 2]
+
+
+def cut_short(
+    presses: list, rng: random.Random, low: int, high: int, hidden_share: float
+) -> list[tuple[np.ndarray, int]]:
+    """Consecutive sign-in length windows of `low`-`high` keys, the last `hidden_share` of each
+    with zones hidden as a password field sends them. Returns (features, keys) per window."""
+    out = []
+    while True:
+        size = rng.randint(low, high)
+        typing = [p for p in presses if p[2] != MODIFIER]
+        if len(typing) < size:
+            return out
+        cut = presses.index(typing[size - 1]) + 1
+        window, presses = presses[:cut], presses[cut:]
+        secret_from = int(len(window) * (1 - hidden_share))
+        window = window[:secret_from] + [(d0, u0, HIDDEN) for d0, u0, _ in window[secret_from:]]
+        out.append((window_vector(window), size))
 
 
 def folded(rounds: list[Round], model: str, train_size: int | None = None, seed: int = 0) -> list[Attempt]:
@@ -194,12 +202,18 @@ def main() -> None:
     parser.add_argument(
         "--login", action="store_true", help="train the login-length model (probes of 15-45 keys, password part hidden)"
     )
+    parser.add_argument(
+        "--history", action="store_true", help="train the model that compares a sign-in with the person's earlier sign-ins"
+    )
     args = parser.parse_args()
 
     started = time.time()
     data = load_aalto(args.zip, args.people)
     if args.login:
         login_model(data)
+        return
+    if args.history:
+        history_model(data)
         return
     rounds = to_rounds(data, WINDOW)
     n = len({r.participant for r in rounds})
@@ -319,6 +333,134 @@ def login_model(data: dict[str, dict[str, list]]) -> None:
     model = Model(version, FITS[chosen](rounds), reject_at, accept_at, "aalto", summary)
     save(settings.artifacts_dir / "keys-login" / version, model, feature_names=KEY_FEATURE_NAMES, schema=KEY_SCHEMA)
     print(f"\nActivated login keyboard model {version} ({NAMES[chosen]}; {reason}); report {out}")
+
+
+HISTORY_SIZES = (3, 5)  # earlier sign-ins compared; the product uses the latest 3 to 5
+
+
+def history_model(data: dict[str, dict[str, list]]) -> None:
+    """A sign-in compared with the person's earlier sign-ins as well as their 50-key profile.
+
+    Per typist: the profile is the first half's 50-key windows; the earlier sign-ins are the
+    last sign-in length windows cut from that same half; new sign-ins are cut from the second
+    half. Both comparisons are pairwise models, and the combined score is the mean of the two
+    log-odds margins, with no weights fitted. Saved only if the combination beats the sign-in
+    model alone by a margin the participant-bootstrap interval supports.
+
+    Aalto has no repeated text, so these "earlier sign-ins" are different sentences. Real
+    sign-ins repeat the same email and password, which should make the comparison stronger;
+    this measures the harder case.
+    """
+    probe_rng, earlier_rng = random.Random(0), random.Random(1)
+    people: dict[str, dict] = {}
+    for pid, d in data.items():
+        enroll = [window_vector(w) for w in windows(d["enroll"], WINDOW)]
+        probes = [v for v, _ in cut_short(d["probe"], probe_rng, LOGIN_LOW, LOGIN_HIGH, LOGIN_HIDDEN)]
+        earlier = [v for v, _ in cut_short(d["enroll"], earlier_rng, LOGIN_LOW, LOGIN_HIGH, LOGIN_HIDDEN)]
+        if enroll and probes and len(earlier) >= max(HISTORY_SIZES):
+            people[pid] = {"enroll": enroll, "earlier": earlier, "probes": probes}
+    n = len(people)
+    print(f"{n} typists; sign-ins of {LOGIN_LOW}-{LOGIN_HIGH} keys, last {LOGIN_HIDDEN:.0%} hidden\n")
+
+    def login_rounds(pids: list[str]) -> list[Round]:
+        return [Round(p, "", f"{p}:enroll", i, v, p) for p in pids for i, v in enumerate(people[p]["enroll"])] + [
+            Round(p, "", f"{p}:probe", 1_000_000 + i, v, p) for p in pids for i, v in enumerate(people[p]["probes"])
+        ]
+
+    def history_rounds(pids: list[str]) -> list[Round]:
+        return [Round(p, "", f"{p}:earlier", i, v, p) for p in pids for i, v in enumerate(people[p]["earlier"])] + [
+            Round(p, "", f"{p}:probe", 1_000_000 + i, v, p) for p in pids for i, v in enumerate(people[p]["probes"])
+        ]
+
+    order = sorted(people, key=lambda name: hashlib.sha256(f"fold:{name}".encode()).hexdigest())
+    rng = random.Random(0)
+    keys = ["login"] + [f"{kind}_{k}" for k in HISTORY_SIZES for kind in ("history", "combined")]
+    attempts: dict[str, list[Attempt]] = {key: [] for key in keys}
+    for f in range(FOLDS):
+        fold = order[f::FOLDS]
+        train = [p for p in order if p not in set(fold)]
+        login = fit_pairwise(login_rounds(train), "boosting", negatives_per_template=100)
+        history = fit_pairwise(history_rounds(train), "boosting", negatives_per_template=100)
+        for target in fold:
+            others = [p for p in fold if p != target]
+            enroll = np.array(people[target]["enroll"])
+            for claimant in [target] + rng.sample(others, min(20, len(others))):
+                probes = np.array(people[claimant]["probes"])
+                s_login = login.score_many(enroll, probes)
+                s_history = {k: history.score_many(np.array(people[target]["earlier"][-k:]), probes) for k in HISTORY_SIZES}
+                for j, s in enumerate(s_login):
+                    if not np.isfinite(s):
+                        continue
+                    scored = [("login", s)]
+                    for k in HISTORY_SIZES:
+                        if np.isfinite(h := s_history[k][j]):
+                            scored += [(f"history_{k}", h), (f"combined_{k}", (s + h) / 2)]
+                    for key, score in scored:
+                        attempts[key].append(Attempt(target, claimant, float(score), f"{claimant}:probe", 1_000_000 + j, True))
+        print(f"   fold {f + 1}/{FOLDS} scored")
+
+    # "b0" is the reference evaluate() pairs every other entry against: here, the sign-in model alone.
+    comparison = evaluate({("b0" if key == "login" else key): attempts[key] for key in keys}, reps=REPS)
+    comparison = {("login" if key == "b0" else key): entry for key, entry in comparison.items()}
+    labels = {"login": "Sign-in model alone (today)"} | {
+        f"{kind}_{k}": f"{'Earlier sign-ins only' if kind == 'history' else 'Combined'}, {k} earlier"
+        for k in HISTORY_SIZES
+        for kind in ("history", "combined")
+    }
+    print()
+    for key in keys:
+        entry = comparison[key]
+        gain = entry.get("auc_gain_over_b0")
+        extra = f"  gain {gain['value']:+.3f} ({gain['low']:+.3f} to {gain['high']:+.3f})" if gain else ""
+        print(f"   {labels[key]:<30} {fmt(result_from(entry))}{extra}")
+
+    gains = {k: comparison[f"combined_{k}"]["auc_gain_over_b0"] for k in HISTORY_SIZES}
+    helps = all(g["low"] is not None and g["low"] > 0 for g in gains.values())
+    pooled = [a for k in HISTORY_SIZES for a in attempts[f"combined_{k}"]]
+    reject_at, accept_at = choose_thresholds(
+        np.array([a.score for a in pooled if a.genuine]), np.array([a.score for a in pooled if not a.genuine])
+    )
+    version = time.strftime("keys-history-m2-%Y%m%d-%H%M%S")
+    summary = {
+        "version": version,
+        "modality": "keys",
+        "use": "login_history",
+        "source": "aalto",
+        "model": "M2 pairwise boosting, earlier sign-ins as the template",
+        "combine": "mean of the sign-in model's score against the profile and this model's score against earlier sign-ins",
+        "earlier_sign_ins": {"min": min(HISTORY_SIZES), "max": max(HISTORY_SIZES)},
+        "probe_keys": [LOGIN_LOW, LOGIN_HIGH],
+        "hidden_share": LOGIN_HIDDEN,
+        "participants": {"total": n},
+        "thresholds": {"reject_at": reject_at, "accept_at": accept_at, "target_error": 0.05, "applies_to": "combined score"},
+        "results": [comparison[key] | {"id": key, "name": labels[key]} for key in keys],
+        "combination_helps": helps,
+        "limitations": [
+            "Aalto has no repeated text, so earlier sign-ins are different sentences; real sign-ins repeat the same email and password.",
+            "Everything comes from one sitting of copied sentences; real sign-ins happen on different days.",
+            "The earlier sign-ins and the 50-key profile come from the same half of each typist's sentences.",
+            "Thresholds were set on Aalto typists; they have not been calibrated on people using Cadence.",
+        ],
+    }
+    out = REPO_ROOT / "artifacts" / "reports" / "aalto-history.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(summary, indent=2, allow_nan=False))
+    if not helps:
+        print(f"\nThe combination did not clearly beat the sign-in model alone; no model saved. Report {out}")
+        return
+    everyone = list(people)
+    model = Model(version, fit_pairwise(history_rounds(everyone), "boosting", negatives_per_template=100), reject_at, accept_at, "aalto", summary)
+    save(settings.artifacts_dir / "keys-history" / version, model, feature_names=KEY_FEATURE_NAMES, schema=KEY_SCHEMA)
+    print(f"\nActivated sign-in history model {version}; combined thresholds {reject_at:.2f} / {accept_at:.2f}; report {out}")
+
+
+def result_from(entry: dict) -> dict:
+    return {
+        "auc": entry["one_round"]["auc"],
+        "eer": entry["one_round"]["eer"],
+        "auc_3": entry["three_rounds"]["auc"],
+        "eer_3": entry["three_rounds"]["eer"],
+    }
 
 
 if __name__ == "__main__":

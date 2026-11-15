@@ -1,13 +1,23 @@
+import type { ActivityRecorder } from '@cadence/sdk'
 import { ShieldCheck, ShieldOff } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 
 import { Verdict } from '@/components/Brand'
+import { PracticeSignIns } from '@/components/PracticeSignIns'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { api, explain, type Me } from '@/lib/api'
 
 /** Turning Cadence on is the person's choice, made on Cadence's own page (OAuth-style). */
-export function Security({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+export function Security({
+  me,
+  onMe,
+  pageRecorder,
+}: {
+  me: Me
+  onMe: (me: Me) => void
+  pageRecorder: RefObject<ActivityRecorder | null>
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -62,6 +72,7 @@ export function Security({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           </ul>
         )}
 
+        {me.cadence.connected && <PracticeSignIns pageRecorder={pageRecorder} />}
         {me.cadence.connected && me.sign_in_check && <Verdict check={me.sign_in_check} what="sign-in" />}
 
         <div className="flex flex-wrap gap-2">

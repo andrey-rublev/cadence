@@ -1,6 +1,7 @@
-"""Cadence setup on the Cadence site: a short click test, a typing test with given sentences,
-and a few separate sign-ins. Most of what a profile needs is collected here, so partner sites
-can check people from whatever they do while signing in, without asking for more.
+"""Cadence setup on the Cadence site: a short click test and a typing test with given
+sentences. Most of what a profile needs is collected here, so partner sites can check people
+from whatever they do while signing in. Sign-in typing is taught per site: right after
+connecting one, the person types that site's own sign-in a few times (`api/sites.py`).
 """
 
 import json
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from .core.config import settings
 from .core.models import Account, PassiveWindow, UserSession, now
 from .core.security import hash_token
-from .passive import MODALITIES, evidence_windows, sign_ins, window_digest
+from .passive import MODALITIES, evidence_windows, window_digest
 from .product import is_trusted
 
 
@@ -33,11 +34,9 @@ def setup_status(db: Session, account: Account) -> dict:
     """Progress through setup. Marks the account complete the first time every step is done."""
     clicks = _windows(db, account.id, "pointer")
     typing = _windows(db, account.id, "keys")
-    signed_in = sign_ins(db, account.id)
     steps = {
         "clicks": {"done": clicks, "needed": settings.setup_pointer_windows},
         "typing": {"done": typing, "needed": settings.setup_key_windows},
-        "sign_ins": {"done": signed_in, "needed": settings.setup_sign_ins},
     }
     complete = all(s["done"] >= s["needed"] for s in steps.values())
     if complete and account.setup_completed_at is None:

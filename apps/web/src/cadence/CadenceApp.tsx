@@ -44,7 +44,7 @@ export function CadenceApp() {
         </header>
         <main className="grid content-start gap-6">
           {me === null && <SignIn onSignedIn={setMe} />}
-          {me && !me.setup.complete && <Setup me={me} onMe={setMe} onSignOut={signOut} />}
+          {me && !me.setup.complete && <Setup me={me} onMe={setMe} />}
           {me && me.setup.complete && <Dashboard me={me} onMe={setMe} />}
         </main>
       </div>

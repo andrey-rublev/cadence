@@ -8,6 +8,8 @@ Partner server          --secret---->  GET  /v1/checks/<id>   -> resolved by fal
 Linking is OAuth-style: the partner sends the person to Cadence /connect, the person approves
 while signed in to Cadence, and the partner exchanges the one-time code for an opaque
 `subject`. The partner never sees timing data, and Cadence never sees the partner's password.
+Right after linking, the person types the partner's own sign-in a few times (practice
+sign-ins); later sign-ins there are compared with those as well as with the profile.
 Evidence that led to a verified check (behaviour or fallback) is added to the profile, so
 each verified sign-in makes the next check better informed.
 """
@@ -28,8 +30,16 @@ from ..core.config import settings
 from ..core.db import Db
 from ..core.models import Account, EvidenceToken, LinkCode, PassiveWindow, Site, SiteCheck, SiteLink, now
 from ..core.security import require_client_header
-from ..passive import MODALITIES, decide_evidence, evidence_windows, recommend_test, window_digest
-from ..policy import CONSISTENT, INCONSISTENT
+from ..passive import (
+    MODALITIES,
+    decide_evidence,
+    evidence_windows,
+    history_model,
+    recommend_test,
+    score_practice,
+    window_digest,
+)
+from ..policy import CONSISTENT, INCONSISTENT, UNCERTAIN
 from ..product import CurrentAccount
 from ..setup import site_session
 from .passive import Activity, check_activity
@@ -172,12 +182,19 @@ def learn(db: Session, check: SiteCheck) -> int:
         return 0
     session = site_session(db, check.account_id)
     for window in windows:
+        if window["use"] != "login":
+            purpose = "enroll"
+        elif check.action == "sign_in" and not window.get("test"):
+            purpose = "signin"  # the sign-in itself: later sign-ins on this site are compared with it
+        else:
+            purpose = "login"
         db.add(
             PassiveWindow(
                 session_id=session.id,
                 account_id=check.account_id,
                 modality=window["modality"],
-                purpose="login" if window["use"] == "login" else "enroll",
+                purpose=purpose,
+                site_id=check.site_id,
                 feature_schema=MODALITIES[window["modality"]]["schema"],
                 values_json=json.dumps(window["values"]),
                 digest=window_digest(window, f"check:{check.id}"),
@@ -210,7 +227,7 @@ def create_check(body: CheckBody, site: SiteBySecret, db: Db) -> dict:
     """Decide a sign-in or sensitive action for a linked person from their browser's evidence."""
     link = _link(db, site, body.subject)
     windows = _claim_evidence(db, site, body.evidence)
-    decision = decide_evidence(db, link.account_id, windows)
+    decision = decide_evidence(db, link.account_id, windows, site.id, body.action)
     check = SiteCheck(
         id=secrets.token_hex(16),
         site_id=site.id,
@@ -234,6 +251,93 @@ def read_check(check_id: str, site: SiteBySecret, db: Db) -> dict:
     if check is None or check.site_id != site.id:
         raise HTTPException(404, "check_unknown")
     return check_view(db, check)
+
+
+class SubjectBody(BaseModel):
+    subject: str = Field(max_length=64)
+
+
+class PracticeBody(SubjectBody):
+    evidence: str = Field(max_length=64)
+
+
+def _practice_status(db: Session, link: SiteLink) -> dict:
+    samples = int(
+        db.scalar(
+            select(func.count()).where(
+                PassiveWindow.account_id == link.account_id,
+                PassiveWindow.site_id == link.site_id,
+                PassiveWindow.purpose == "signin",
+            )
+        )
+        or 0
+    )
+    is_open = (
+        now() - link.created_at <= settings.practice_ttl_s
+        and link.practice_attempts < settings.practice_max_attempts
+        and samples < settings.history_max_sign_ins
+    )
+    return {
+        "samples": samples,
+        "needed": settings.history_min_sign_ins,
+        "most": settings.history_max_sign_ins,
+        "attempts_left": max(0, settings.practice_max_attempts - link.practice_attempts),
+        "open": is_open,
+        "complete": samples >= settings.history_min_sign_ins,
+        # Whether new sign-ins are scored against these yet: only with a measured history model.
+        "compared": history_model() is not None,
+    }
+
+
+@partners.post("/sign-in-samples/status")
+def practice_status(body: SubjectBody, site: SiteBySecret, db: Db) -> dict:
+    return _practice_status(db, _link(db, site, body.subject))
+
+
+@partners.post("/sign-in-samples")
+def add_practice_sign_in(body: PracticeBody, site: SiteBySecret, db: Db) -> dict:
+    """A practice sign-in: right after connecting, the person types this site's own email and
+    password, so later sign-ins here can be compared with how they type exactly that.
+
+    The site's server calls this only after checking the password itself; Cadence gets timing,
+    never the characters. Practice is open for a short time after linking and for a few
+    attempts, and a sample that does not look like the typing-test profile is turned away, so
+    someone else who knows the password cannot teach Cadence their own typing.
+    """
+    link = _link(db, site, body.subject)
+    account = db.get(Account, link.account_id)
+    if account is None or account.setup_completed_at is None:
+        raise HTTPException(409, "setup_incomplete")
+    if not _practice_status(db, link)["open"]:
+        raise HTTPException(409, "practice_closed")
+    windows = _claim_evidence(db, site, body.evidence)
+    link.practice_attempts += 1
+    sample = next((w for w in windows if w["modality"] == "keys" and w["use"] == "login"), None)
+    if sample is None:
+        db.commit()
+        return {"accepted": False, "reason": "not_sign_in_length", **_practice_status(db, link)}
+    part = score_practice(db, account.id, sample)
+    if part.outcome not in (CONSISTENT, UNCERTAIN):
+        db.commit()
+        reason = "did_not_match" if part.outcome == INCONSISTENT else part.reason
+        return {"accepted": False, "reason": reason, **_practice_status(db, link)}
+    if link.practice_session_id is None:
+        link.practice_session_id = site_session(db, account.id).id
+    db.add(
+        PassiveWindow(
+            session_id=link.practice_session_id,
+            account_id=account.id,
+            modality="keys",
+            purpose="signin",
+            site_id=site.id,
+            feature_schema=MODALITIES["keys"]["schema"],
+            values_json=json.dumps(sample["values"]),
+            digest=window_digest(sample, f"practice:{link.id}:{link.practice_attempts}"),
+            duration_ms=0,
+        )
+    )
+    db.commit()
+    return {"accepted": True, "reason": None, **_practice_status(db, link)}
 
 
 class ExchangeBody(BaseModel):
@@ -312,8 +416,26 @@ def my_sites(account: CurrentAccount, db: Db) -> dict:
         .order_by(SiteCheck.created_at.desc())
         .limit(20)
     ).all()
+    remembered = dict(
+        db.execute(
+            select(PassiveWindow.site_id, func.count())
+            .where(PassiveWindow.account_id == account.id, PassiveWindow.purpose == "signin")
+            .group_by(PassiveWindow.site_id)
+        ).all()
+    )
     return {
-        "sites": [{"id": link.id, "name": name, "since": link.created_at} for link, name in links],
+        "sites": [
+            {
+                "id": link.id,
+                "name": name,
+                "since": link.created_at,
+                # Verified sign-ins on this site that later sign-ins are compared with.
+                "sign_ins_remembered": int(remembered.get(link.site_id, 0)),
+                "sign_ins_needed": settings.history_min_sign_ins,
+            }
+            for link, name in links
+        ],
+        "sign_ins_compared": history_model() is not None,
         "checks": [
             {
                 "id": check.id,
@@ -335,6 +457,12 @@ def disconnect_site(link_id: int, account: CurrentAccount, db: Db) -> dict:
     if link is None or link.account_id != account.id:
         raise HTTPException(404, "site_unknown")
     link.revoked_at = now()
+    # The sign-ins remembered for this site go with it; reconnecting starts practice again.
+    db.execute(
+        delete(PassiveWindow).where(
+            PassiveWindow.account_id == account.id, PassiveWindow.site_id == link.site_id, PassiveWindow.purpose == "signin"
+        )
+    )
     db.commit()
     return my_sites(account, db)
 
@@ -388,7 +516,8 @@ def stepup_test(check_id: str, body: Activity, db: Db) -> dict:
     if check.stepup_tests >= MAX_TESTS:
         raise HTTPException(429, "no_tests_left")
     check_activity(body)
-    windows = evidence_windows(body.keys, body.pointer)
+    # Marked as test windows: a typed test sentence is never taken for a sign-in.
+    windows = [w | {"test": True} for w in evidence_windows(body.keys, body.pointer)]
     check.stepup_tests += 1
     decision = decide_evidence(db, check.account_id, windows)
     if decision.outcome == CONSISTENT:

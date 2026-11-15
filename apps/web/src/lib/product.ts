@@ -30,7 +30,7 @@ export interface SetupStep {
 /** Cadence setup on the Cadence site (backend/cadence/setup.py). */
 export interface SetupStatus {
   complete: boolean
-  steps: { clicks: SetupStep; typing: SetupStep; sign_ins: SetupStep }
+  steps: { clicks: SetupStep; typing: SetupStep }
 }
 
 export interface Me {
@@ -59,7 +59,16 @@ export interface SiteCheckRecord {
 }
 
 export interface MySites {
-  sites: { id: number; name: string; since: number }[]
+  sites: {
+    id: number
+    name: string
+    since: number
+    /** Verified sign-ins on this site that later sign-ins are compared with. */
+    sign_ins_remembered: number
+    sign_ins_needed: number
+  }[]
+  /** Whether new sign-ins are scored against earlier ones yet (only with a measured model). */
+  sign_ins_compared: boolean
   checks: SiteCheckRecord[]
 }
 
@@ -116,6 +125,8 @@ export interface PassivePart {
   use?: 'standard' | 'login'
   /** Keys or clicks in the scored evidence. */
   amount?: number
+  /** Sign-ins only: earlier verified sign-ins on the same site this one was also compared with. */
+  earlier_sign_ins?: number
 }
 
 export interface PassiveDecision {
