@@ -36,12 +36,40 @@ def migrate(bind: Engine) -> None:
             conn.exec_driver_sql("ALTER TABLE participants RENAME COLUMN code TO username")
             conn.exec_driver_sql("UPDATE participants SET username = lower(username)")
 
+        # passive_windows gained participant_id and a nullable account_id. SQLite cannot alter
+        # a column's nullability, so the old table is set aside and copied over after create_all.
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(passive_windows)")}
+        if columns and "participant_id" not in columns:
+            for index in (
+                "ix_passive_account_modality",
+                "ux_passive_account_digest",
+                "ix_passive_windows_session_id",
+                "ix_passive_windows_account_id",
+            ):
+                conn.exec_driver_sql(f"DROP INDEX IF EXISTS {index}")
+            conn.exec_driver_sql("ALTER TABLE passive_windows RENAME TO passive_windows_v1")
+
+
+def _copy_set_aside(bind: Engine) -> None:
+    with bind.begin() as conn:
+        exists = conn.exec_driver_sql(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'passive_windows_v1'"
+        ).first()
+        if exists:
+            columns = (
+                "id, session_id, account_id, modality, purpose, feature_schema, values_json, "
+                "digest, events_z, duration_ms, captured_at"
+            )
+            conn.exec_driver_sql(f"INSERT INTO passive_windows ({columns}) SELECT {columns} FROM passive_windows_v1")
+            conn.exec_driver_sql("DROP TABLE passive_windows_v1")
+
 
 def init_db() -> None:
     from . import models  # noqa: F401  (registers tables)
 
     migrate(engine)
     Base.metadata.create_all(engine)
+    _copy_set_aside(engine)
 
 
 def get_db() -> Iterator[Session]:

@@ -9,7 +9,7 @@ from sqlalchemy import delete, select
 from ..collect import normalise_username
 from ..core.config import settings
 from ..core.db import Db
-from ..core.models import Account, ActionGrant, Sample, SampleFeatures, TrustCode, Verification, now
+from ..core.models import Account, ActionGrant, PassiveWindow, Sample, SampleFeatures, TrustCode, Verification, now
 from ..core.passwords import hash_password, verify_password
 from ..core.security import (
     CurrentSession,
@@ -18,6 +18,7 @@ from ..core.security import (
     open_session,
     require_client_header,
 )
+from ..passive import passive_profile
 from ..product import CurrentAccount, active_model, is_trusted, issue_grant, profile_status
 
 router = APIRouter(prefix="/api", tags=["account"], dependencies=[Depends(require_client_header)])
@@ -49,6 +50,7 @@ def _me(db: Db, account: Account, session) -> dict:
         "keep_raw": account.keep_raw,
         "trusted": is_trusted(session),
         "profile": profile_status(db, account, session),
+        "passive": passive_profile(db, account.id, session),
         "model": None if model is None else {"version": model.version, "source": model.source},
         "retention_days": settings.retention_days,
     }
@@ -111,6 +113,7 @@ def delete_profile(account: CurrentAccount, session: CurrentSession, db: Db) -> 
     sample_ids = select(Sample.id).where(Sample.account_id == account.id)
     db.execute(delete(SampleFeatures).where(SampleFeatures.sample_id.in_(sample_ids)))
     db.execute(delete(Sample).where(Sample.account_id == account.id))
+    db.execute(delete(PassiveWindow).where(PassiveWindow.account_id == account.id))
     db.execute(delete(Verification).where(Verification.account_id == account.id))
     account.consent_at = None
     account.keep_raw = False

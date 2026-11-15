@@ -9,17 +9,60 @@ export interface Profile {
   this_session: { practice_done: boolean; rounds: number; rounds_total: number }
 }
 
+export type Modality = 'keys' | 'pointer'
+
+/** Passive learning progress for one kind of input (backend/cadence/passive.py). */
+export interface PassiveStatus {
+  windows: number
+  sessions: number
+  windows_needed: number
+  sessions_needed: number
+  sufficient: boolean
+  recent_evidence: number
+  model: { version: string; source: string } | null
+}
+
 export interface Me {
   username: string
   consent: boolean
   keep_raw: boolean
   trusted: boolean
   profile: Profile
+  passive: Record<Modality, PassiveStatus>
   model: { version: string; source: 'volunteer' | 'synthetic' } | null
   retention_days: number
 }
 
 export type Outcome = 'CONSISTENT' | 'UNCERTAIN' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE'
+
+export type PassiveReason =
+  | 'model_missing'
+  | 'not_enrolled'
+  | 'no_interaction_yet'
+  | 'window_not_measurable'
+  | 'no_evidence'
+  | 'learning_session'
+
+/** One input's verdict inside a passive check. Score is a similarity, not a probability. */
+export interface PassivePart {
+  modality: Modality
+  outcome: Outcome
+  reason: PassiveReason | null
+  score: number | null
+  reject_at: number | null
+  accept_at: number | null
+  windows: number
+  enrollment_windows: number
+  model_version: string | null
+}
+
+export interface PassiveDecision {
+  outcome: Outcome
+  reason: PassiveReason | null
+  parts: PassivePart[]
+}
+
+export const MODALITY_LABEL: Record<Modality, string> = { keys: 'Typing rhythm', pointer: 'Pointer movement' }
 
 export interface Decision {
   outcome: Outcome
@@ -49,8 +92,10 @@ export interface VerificationRecord {
   action: string
   at: number
   resolved_by: 'behavior' | 'fallback' | null
-  decision: Decision
+  decision: Decision | PassiveDecision
 }
+
+export const isPassive = (d: Decision | PassiveDecision): d is PassiveDecision => 'parts' in d
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
   CONSISTENT: 'Matches',

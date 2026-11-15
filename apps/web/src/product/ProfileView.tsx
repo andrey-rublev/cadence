@@ -1,112 +1,66 @@
-import type { ChallengeResult, IssuedChallenge } from '@cadence/sdk'
 import { useState } from 'react'
 
-import { RoundRunner } from '@/challenge/RoundRunner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { api, explain } from '@/lib/api'
-import type { Me, Profile } from '@/lib/product'
+import { MODALITY_LABEL, type Me, type Modality } from '@/lib/product'
 
-import { Card, HistoryCard, ModelCard } from './EvidenceCards'
+import { Card, HistoryCard, PassiveModelsCard } from './EvidenceCards'
 import { FallbackPanel } from './FallbackPanel'
+import { Meter, NextSample, PracticeBox } from './PassiveCapture'
 
-function Progress({ label, value, total }: { label: string; value: number; total: number }) {
+function ModalityProgress({ modality, me }: { modality: Modality; me: Me }) {
+  const status = me.passive[modality]
   return (
-    <div className="grid gap-1.5">
-      <p className="flex justify-between text-sm">
-        <span>{label}</span>
-        <span className="font-mono text-muted-foreground">
-          {Math.min(value, total)} of {total}
-        </span>
+    <div className="grid content-start gap-3 rounded-lg border border-rule p-4">
+      <p className="flex items-baseline justify-between gap-2">
+        <span className="font-semibold">{MODALITY_LABEL[modality]}</span>
+        <span className="font-mono text-xs text-muted-foreground">{status.sufficient ? 'ready' : 'learning'}</span>
       </p>
-      <span className="h-1.5 overflow-hidden rounded-full bg-rule" aria-hidden="true">
-        <span className="block h-full bg-primary" style={{ width: `${Math.min(1, value / total) * 100}%` }} />
-      </span>
+      <Meter label="Samples" value={status.windows} total={status.windows_needed} />
+      <Meter label="Separate sign-ins" value={status.sessions} total={status.sessions_needed} />
     </div>
   )
 }
 
-/** Records one enrollment block: a practice round, then this sign-in's scored rounds. */
-function Enrollment({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
-  const [challenge, setChallenge] = useState<IssuedChallenge | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const session = me.profile.this_session
-  const roundName = session.practice_done ? `round ${session.rounds + 1} of ${session.rounds_total}` : 'practice round'
+/** Learning happens while the person works. A trusted verification opens a 15-minute window. */
+function Learning({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+  const ready = me.passive.keys.sufficient || me.passive.pointer.sufficient
 
-  if (session.rounds >= session.rounds_total) {
-    return (
-      <p className="rounded-lg border border-rule bg-muted/60 p-4">
-        This sign-in’s rounds are recorded.{' '}
-        {me.profile.sufficient
-          ? 'Your profile is ready.'
-          : 'A profile needs rounds from at least two separate sign-ins, so that it reflects more than one sitting. Sign out, come back later and record the next session.'}
-      </p>
-    )
-  }
   if (!me.trusted) {
     return (
       <div className="grid gap-3">
-        <p>
-          Recording needs trusted verification first. That way only the account’s owner can shape the profile
-          that later checks rely on.
-        </p>
+        {ready ? (
+          <p>
+            This sign-in is being checked quietly: what you do here is compared with your profile when you export. You
+            only need the demo authenticator to add more to the profile, which starts a 15-minute learning session (and
+            exports in that session are not checked).
+          </p>
+        ) : (
+          <p>
+            Each learning session starts with trusted verification, so only the account’s owner shapes the profile that
+            later checks rely on. After that, Cadence learns for 15 minutes while you work normally.
+          </p>
+        )}
         <FallbackPanel onVerified={({ me: updated }) => onMe(updated)} />
       </div>
     )
   }
-
-  async function start() {
-    setBusy(true)
-    setError(null)
-    try {
-      setChallenge(await api.request<IssuedChallenge>('POST', '/challenges', { purpose: 'enroll' }))
-    } catch (e) {
-      setError(explain(e))
-      // Trust may have lapsed since the page loaded; refresh so the right step shows.
-      api.request<Me>('GET', '/me').then(onMe)
-    }
-    setBusy(false)
-  }
-
-  async function finish(result: ChallengeResult) {
-    const id = challenge!.id
-    setChallenge(null)
-    setBusy(true)
-    try {
-      const saved = await api.submitChallenge<{ profile: Profile }>(id, result)
-      onMe({ ...me, profile: saved.profile })
-    } catch (e) {
-      setError(explain(e))
-    }
-    setBusy(false)
-  }
-
   return (
     <div className="grid gap-4">
-      <RoundRunner
-        challenge={challenge}
-        idleText={
-          session.practice_done
-            ? 'Each round has a new layout. Move the way you normally would.'
-            : 'A practice round first. It is never added to your profile.'
-        }
-        onComplete={finish}
-      >
-        <div className="grid max-w-sm justify-items-center gap-4 rounded-xl border border-rule bg-card/95 p-6 text-center shadow-sm">
-          {error ? (
-            <Alert variant="destructive" role="alert" className="text-left">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : (
-            <p>Dig eight spots, carry three finds to the tray, then follow the marker. About 20 seconds.</p>
-          )}
-          <Button size="lg" onClick={start} disabled={busy} className="h-12 px-6 text-base">
-            {busy ? 'One moment…' : `Start ${roundName}`}
-          </Button>
-        </div>
-      </RoundRunner>
+      <p>
+        Learning now. Work as you normally would: search customers, write notes, click around. To speed it up, type
+        here and click through the list.
+      </p>
+      <PracticeBox id="practice" label="Typing practice" />
+      <NextSample />
+      {ready && (
+        <p className="text-sm text-muted-foreground">
+          This sign-in is teaching the profile, so exports in it are not checked against it. To see a check, sign out
+          and sign back in without the demo authenticator, work for a minute, then export.
+        </p>
+      )}
     </div>
   )
 }
@@ -133,8 +87,8 @@ function DataControls({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       <label className="flex cursor-pointer items-start gap-3">
         <Checkbox checked={me.consent} onCheckedChange={(v) => save(v === true, me.keep_raw)} className="mt-1" />
         <span>
-          Record how I move the pointer inside this app’s challenge rounds, and use it to check sensitive actions
-          on my account.
+          While I use this app, record how I move the pointer and the timing of my typing, and use them to check
+          sensitive actions on my account.
         </span>
       </label>
       <label className={`flex items-start gap-3 ${me.consent ? 'cursor-pointer' : 'opacity-60'}`}>
@@ -144,12 +98,13 @@ function DataControls({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           onCheckedChange={(v) => save(true, v === true)}
           className="mt-1"
         />
-        <span>Also keep my raw pointer paths, to help debug and retrain the model. Off by default.</span>
+        <span>Also keep the raw timing and pointer paths, to help debug and retrain the model. Off by default.</span>
       </label>
       <p className="text-sm text-muted-foreground">
-        Stored by default: movement measurements only, such as speeds, timings and how straight a path was.
-        Never recorded: passwords, anything you type, or anything outside the challenge area. Kept for{' '}
-        {me.retention_days} days at most.
+        Stored by default: measurements only, such as key hold times, gaps between keys and how straight a pointer path
+        was. Never recorded: what you type, passwords (only their timing, and not even which part of the keyboard), or
+        anything outside this app. You can pause capture from the header at any time. Kept for {me.retention_days}{' '}
+        days at most.
       </p>
 
       <div className="grid gap-3 border-t border-rule pt-4">
@@ -159,7 +114,7 @@ function DataControls({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
           </Button>
         ) : me.trusted ? (
           <div className="flex flex-wrap items-center gap-2">
-            <p className="mr-2">This removes the profile and every stored round. It cannot be undone.</p>
+            <p className="mr-2">This removes the profile and every stored sample. It cannot be undone.</p>
             <Button variant="destructive" onClick={remove} className="h-10 px-4 text-base">
               Delete profile
             </Button>
@@ -184,34 +139,38 @@ function DataControls({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 }
 
 export function ProfileView({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
-  const { profile } = me
+  const ready = me.passive.keys.sufficient || me.passive.pointer.sufficient
+  const samples = me.passive.keys.windows + me.passive.pointer.windows
   return (
     <div className="grid gap-6">
       <div>
-        <p className="font-mono text-sm text-muted-foreground">
-          {profile.sufficient ? 'Profile ready' : 'Profile not finished'}
-        </p>
-        <h1 className="text-4xl font-extrabold">Movement profile</h1>
+        <p className="font-mono text-sm text-muted-foreground">{ready ? 'Profile ready' : 'Profile not finished'}</p>
+        <h1 className="text-4xl font-extrabold">Behaviour profile</h1>
       </div>
 
-      <Card title={profile.sufficient ? 'Your profile is ready' : 'Record your profile'}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Progress label="Rounds recorded" value={profile.rounds} total={profile.rounds_needed} />
-          <Progress label="Separate sign-ins" value={profile.sessions} total={profile.sessions_needed} />
+      <Card title={ready ? 'Your profile is ready' : 'Build your profile'}>
+        <p className="text-muted-foreground">
+          No game to play. Cadence learns your typing rhythm and pointer movement while you use the app, from at least
+          two separate sign-ins so the profile reflects more than one sitting. Either kind of input is enough to check
+          an export.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ModalityProgress modality="keys" me={me} />
+          <ModalityProgress modality="pointer" me={me} />
         </div>
         {me.consent ? (
-          <Enrollment me={me} onMe={onMe} />
+          <Learning me={me} onMe={onMe} />
         ) : (
           <p className="rounded-lg border border-dashed border-input bg-muted/60 p-4">
-            Recording is off. Agree under “Consent and your data” below to start. Until then, exports ask for
-            trusted verification every time.
+            Capture is off. Agree under “Consent and your data” below to start. Until then, exports ask for trusted
+            verification every time.
           </p>
         )}
       </Card>
 
       <DataControls me={me} onMe={onMe} />
-      <HistoryCard refreshKey={profile.rounds} />
-      <ModelCard />
+      <HistoryCard refreshKey={samples} />
+      <PassiveModelsCard />
     </div>
   )
 }

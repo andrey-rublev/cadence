@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
-import { OUTCOME_LABEL, type VerificationRecord } from '@/lib/product'
+import { isPassive, MODALITY_LABEL, OUTCOME_LABEL, type Modality, type VerificationRecord } from '@/lib/product'
 
 /** A measured value and its 95% participant-bootstrap range. */
 interface Interval {
@@ -14,36 +14,55 @@ interface Interval {
 interface ModelResult {
   id: string
   name: string
-  counts: {
-    targets: number
-    people: number
-    genuine_attempts: number
-    impostor_attempts: number
-    genuine_decisions: number
-    impostor_decisions: number
-  }
+  counts: { targets: number; genuine_attempts: number; impostor_attempts: number }
   one_round: { auc: Interval; eer: Interval }
   three_rounds: { auc: Interval; eer: Interval }
-  policy: {
-    impostor_accepted: Interval
-    genuine_accepted: Interval
-    genuine_rejected: Interval
-    genuine_fallback: Interval
-  }
-  stations: Record<'same' | 'other', { impostor_attempts: number; auc: number | null }>
-  auc_gain_over_b0?: Interval
+  policy: { impostor_accepted: Interval; genuine_accepted: Interval; genuine_fallback: Interval }
 }
 
-/** What `scripts/train.py` wrote for the active model. Nothing here is computed in the browser. */
-interface ModelSummary {
+/** What a passive training script (scripts/aalto.py, scripts/sapimouse.py) wrote. Nothing is computed here. */
+interface PassiveModelSummary {
   version: string
-  source: 'volunteer' | 'synthetic'
-  participants: { total: number; with_two_sessions: number }
-  rounds: number
-  protocol?: { name: string; description: string }
-  models?: ModelResult[]
-  selected?: { id: string; name: string; reason: string }
+  source: string
+  window: number
+  participants: { total: number }
+  models: ModelResult[]
+  selected: { id: string; name: string; reason: string }
   limitations: string[]
+}
+
+const DATASET: Record<Modality, { name: string; unit: string; credit: ReactNode }> = {
+  keys: {
+    name: 'Aalto 136M Keystrokes',
+    unit: 'keys',
+    credit: (
+      <>
+        Typing data: Dhakal, Feit, Kristensson and Oulasvirta,{' '}
+        <a className="underline" href="https://userinterfaces.aalto.fi/136Mkeystrokes/" target="_blank" rel="noreferrer">
+          Observations on Typing from 136 Million Keystrokes
+        </a>{' '}
+        (CHI 2018). Used for non-commercial research with attribution.
+      </>
+    ),
+  },
+  pointer: {
+    name: 'SapiMouse',
+    unit: 'clicks',
+    credit: (
+      <>
+        Pointer data:{' '}
+        <a
+          className="underline"
+          href="https://www.ms.sapientia.ro/~manyi/sapimouse/sapimouse.html"
+          target="_blank"
+          rel="noreferrer"
+        >
+          SapiMouse
+        </a>{' '}
+        (Antal et al., 2021).
+      </>
+    ),
+  },
 }
 
 export function Card({ title, children }: { title: string; children: ReactNode }) {
@@ -58,7 +77,7 @@ export function Card({ title, children }: { title: string; children: ReactNode }
 const percent = (x: number | null) => (x === null ? 'n/a' : `${Math.round(x * 100)}%`)
 const decimal = (x: number | null) => (x === null ? 'n/a' : x.toFixed(2))
 
-/** "44% (19–71%)" with a bar showing where the range sits between 0 and 1. */
+/** "0.84 0.80–0.88" with a bar showing where the range sits between 0 and 1. */
 function Ranged({ interval, format }: { interval: Interval; format: (x: number | null) => string }) {
   const { value, low, high } = interval
   return (
@@ -84,29 +103,17 @@ function Ranged({ interval, format }: { interval: Interval; format: (x: number |
   )
 }
 
-function Outcome({ label, interval, note }: { label: string; interval: Interval; note: string }) {
-  return (
-    <div className="grid content-start gap-1">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-2xl">
-        <Ranged interval={interval} format={percent} />
-      </dd>
-      <dd className="text-sm text-muted-foreground">{note}</dd>
-    </div>
-  )
-}
-
-function Comparison({ models, selected }: { models: ModelResult[]; selected?: string }) {
+function Comparison({ models, selected, sample }: { models: ModelResult[]; selected?: string; sample: string }) {
   return (
     <div className="overflow-x-auto">
-      <Table className="min-w-[640px]">
+      <Table className="min-w-[600px]">
         <caption className="sr-only">Held-out results for each candidate model, with 95% ranges</caption>
         <TableHeader>
           <TableRow>
             <TableHead>Model</TableHead>
-            <TableHead>AUC, 1 round</TableHead>
-            <TableHead>AUC, 3 rounds</TableHead>
-            <TableHead>Equal error, 1 round</TableHead>
+            <TableHead>AUC, 1 {sample}</TableHead>
+            <TableHead>AUC, 3 {sample}s</TableHead>
+            <TableHead>Equal error, 1 {sample}</TableHead>
             <TableHead>Impostors let through</TableHead>
           </TableRow>
         </TableHeader>
@@ -139,105 +146,79 @@ function Comparison({ models, selected }: { models: ModelResult[]; selected?: st
   )
 }
 
-export function ModelCard() {
-  const [summary, setSummary] = useState<ModelSummary | null | undefined>(undefined)
-  useEffect(() => {
-    api.request<ModelSummary | null>('GET', '/model').then(setSummary, () => setSummary(null))
-  }, [])
-
-  if (summary === undefined) return <Card title="Model and measured results">Loading…</Card>
-  if (summary === null) {
+function ModelSection({ modality, summary }: { modality: Modality; summary: PassiveModelSummary | null }) {
+  const dataset = DATASET[modality]
+  if (!summary) {
     return (
-      <Card title="Model and measured results">
+      <div className="grid gap-1">
+        <h3 className="font-semibold">{MODALITY_LABEL[modality]}</h3>
         <p className="text-muted-foreground">
-          No verification model is installed. Until one is trained on volunteer data, every movement check
-          answers “Not enough evidence” and the export needs trusted verification.
+          No model installed, so this input cannot be checked. The other input, or trusted verification, still works.
         </p>
-      </Card>
+      </div>
     )
   }
-
-  const { participants } = summary
-  const current = summary.models?.find((m) => m.id === summary.selected?.id)
   return (
-    <Card title="Model and measured results">
+    <div className="grid gap-3">
+      <h3 className="font-semibold">{MODALITY_LABEL[modality]}</h3>
       <p className="font-mono text-sm text-muted-foreground">
-        {summary.selected?.name ?? 'Model'} · {summary.version} · {participants.total} people,{' '}
-        {participants.with_two_sessions} with two sessions · {summary.rounds} rounds
+        {summary.selected.name} · {summary.version} · {summary.participants.total} people from {dataset.name} · one
+        sample is {summary.window} {dataset.unit}
       </p>
+      <Comparison models={summary.models} selected={summary.selected.id} sample="sample" />
+      <p className="text-sm text-muted-foreground">{summary.selected.reason}</p>
+      <ul className="grid list-disc gap-1 rounded-lg border border-uncertain/50 bg-uncertain/8 p-4 pl-8 text-sm" role="note">
+        {summary.limitations.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      <p className="text-xs text-muted-foreground">{dataset.credit}</p>
+    </div>
+  )
+}
 
-      {current ? (
+/** The passive models and how they did on people they never saw, straight from their eval summaries. */
+export function PassiveModelsCard() {
+  const [models, setModels] = useState<Record<Modality, PassiveModelSummary | null> | null | undefined>(undefined)
+  useEffect(() => {
+    api.request<Record<Modality, PassiveModelSummary | null>>('GET', '/passive/models').then(setModels, () => setModels(null))
+  }, [])
+
+  return (
+    <Card title="Models and measured results">
+      {models === undefined && <p className="text-muted-foreground">Loading…</p>}
+      {models === null && <p className="text-muted-foreground">Could not load the model summaries.</p>}
+      {models && (
         <>
-          <div className="grid gap-3">
-            <h3 className="font-semibold">What a check decided for people it had never seen</h3>
-            <dl className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-              <Outcome
-                label="Impostors let through"
-                interval={current.policy.impostor_accepted}
-                note={`of ${current.counts.impostor_decisions} impostor checks`}
-              />
-              <Outcome
-                label="Owners let through"
-                interval={current.policy.genuine_accepted}
-                note={`of ${current.counts.genuine_decisions} owner checks, each up to three rounds`}
-              />
-              <Outcome
-                label="Owners sent to the demo authenticator"
-                interval={current.policy.genuine_fallback}
-                note="still uncertain after three rounds"
-              />
-              <Outcome
-                label="Owners held as a mismatch"
-                interval={current.policy.genuine_rejected}
-                note="the export waits for trusted verification"
-              />
-            </dl>
-            <p className="text-sm text-muted-foreground">
-              Ranges are 95% intervals from resampling people. With this few people they are wide; read the range,
-              not the single number.
-            </p>
-          </div>
-
-          {summary.models && summary.models.length > 1 && (
-            <div className="grid gap-3">
-              <h3 className="font-semibold">Baseline against the learned models</h3>
-              <Comparison models={summary.models} selected={summary.selected?.id} />
-              <p className="text-sm text-muted-foreground">{summary.selected?.reason}</p>
-            </div>
-          )}
-
-          <div className="grid gap-1">
-            <h3 className="font-semibold">Same laptop or not</h3>
-            <p className="text-sm text-muted-foreground">
-              Impostors on the owner's own laptop: AUC {decimal(current.stations.same.auc)} over{' '}
-              {current.stations.same.impostor_attempts} attempts. On another laptop: AUC{' '}
-              {decimal(current.stations.other.auc)} over {current.stations.other.impostor_attempts}. A gap here means part
-              of what separates people is their device, so the same-laptop figure is the honest one.
-            </p>
-          </div>
+          <p className="text-muted-foreground">
+            Both models were trained on public research datasets and tested on people they never saw. Ranges are 95%
+            intervals from resampling people. Neither has been calibrated on people using this app yet.
+          </p>
+          <ModelSection modality="keys" summary={models.keys} />
+          <ModelSection modality="pointer" summary={models.pointer} />
         </>
-      ) : (
-        <p className="text-muted-foreground">
-          This model was trained before held-out comparisons existed. Retrain it with <code>scripts/train.py</code>.
-        </p>
-      )}
-
-      {summary.limitations.length > 0 && (
-        <ul className="grid list-disc gap-1.5 rounded-lg border border-uncertain/50 bg-uncertain/8 p-4 pl-8 text-sm" role="note">
-          {summary.limitations.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      )}
-
-      {summary.protocol && (
-        <details className="text-sm text-muted-foreground">
-          <summary className="cursor-pointer font-medium text-foreground">How this was measured</summary>
-          <p className="mt-2">{summary.protocol.description}</p>
-        </details>
       )}
     </Card>
   )
+}
+
+function Similarity({ record }: { record: VerificationRecord }) {
+  const d = record.decision
+  if (isPassive(d)) {
+    const scored = d.parts.filter((p) => p.score !== null)
+    if (!scored.length) return <>none</>
+    return (
+      <span className="grid gap-0.5">
+        {scored.map((p) => (
+          <span key={p.modality}>
+            {p.modality === 'keys' ? 'Typing' : 'Pointer'} {p.score!.toFixed(2)} ({p.reject_at?.toFixed(2)} /{' '}
+            {p.accept_at?.toFixed(2)})
+          </span>
+        ))}
+      </span>
+    )
+  }
+  return <>{d.score === null ? 'none' : `${d.score.toFixed(2)} (${d.reject_at?.toFixed(2)} / ${d.accept_at?.toFixed(2)})`}</>
 }
 
 export function HistoryCard({ refreshKey }: { refreshKey: number }) {
@@ -258,37 +239,30 @@ export function HistoryCard({ refreshKey }: { refreshKey: number }) {
             <TableHeader>
               <TableRow>
                 <TableHead>When</TableHead>
-                <TableHead>Movement check</TableHead>
-                <TableHead>Similarity</TableHead>
-                <TableHead>Rounds</TableHead>
+                <TableHead>Check</TableHead>
+                <TableHead>Similarity (thresholds)</TableHead>
                 <TableHead>Released by</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.map((record) => {
-                const d = record.decision
-                return (
-                  <TableRow key={record.id}>
-                    <TableCell className="font-mono text-sm">
-                      {new Date(record.at * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                    </TableCell>
-                    <TableCell>{OUTCOME_LABEL[d.outcome]}</TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {d.score === null
-                        ? 'none'
-                        : `${d.score.toFixed(2)} (${d.reject_at?.toFixed(2)} / ${d.accept_at?.toFixed(2)})`}
-                    </TableCell>
-                    <TableCell className="tabular-nums">{d.rounds}</TableCell>
-                    <TableCell>
-                      {record.resolved_by === 'behavior'
-                        ? 'Movement'
-                        : record.resolved_by === 'fallback'
-                          ? 'Demo authenticator'
-                          : 'Not released'}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+              {records.map((record) => (
+                <TableRow key={record.id}>
+                  <TableCell className="font-mono text-sm">
+                    {new Date(record.at * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </TableCell>
+                  <TableCell>{OUTCOME_LABEL[record.decision.outcome]}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    <Similarity record={record} />
+                  </TableCell>
+                  <TableCell>
+                    {record.resolved_by === 'behavior'
+                      ? 'Typing and movement'
+                      : record.resolved_by === 'fallback'
+                        ? 'Demo authenticator'
+                        : 'Not released'}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>

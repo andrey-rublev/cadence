@@ -4,26 +4,29 @@ Behavioural verification as a risk signal for sensitive actions. A hackathon pro
 
 Cadence learns how an enrolled account owner moves and clicks, compares later interactions with that profile, and uses the result to decide when a protected action needs stronger verification.
 
-**Status:** the full loop works: sign-in, trusted enrollment, a movement check on the protected export, and a simulated fallback, all enforced on the server. Volunteer collection is running. **No model trained on real people exists yet**, so on a fresh checkout every check answers "Not enough evidence" until `scripts/train.py` has volunteer data. [PLAN.md](PLAN.md) has the plan, the research behind it, and the live status tracker.
+> **This is the `no-game` branch:** verification from ordinary typing and pointer use, with no challenge to play. See [NO_GAME.md](NO_GAME.md). The challenge version lives on `main`.
+
+**Status (main):** the full loop works: sign-in, trusted enrollment, a movement check on the protected export, and a simulated fallback, all enforced on the server. Volunteer collection is running. **No model trained on real people exists yet**, so on a fresh checkout every check answers "Not enough evidence" until `scripts/train.py` has volunteer data. [PLAN.md](PLAN.md) has the plan, the research behind it, and the live status tracker.
 
 ## Run it
 
-Needs Python 3.11+ with [`uv`](https://docs.astral.sh/uv/) and Node 20+.
+Needs Python 3.11+ with [`uv`](https://docs.astral.sh/uv/) and Node 20+. From the repo root:
 
 ```bash
-cd backend && uv sync && cd ..
-npm install
+npm run setup
 ```
 
 ```bash
-cd backend && uv run uvicorn cadence.main:app --port 8000
+npm start
 ```
 
-```bash
-npm run dev
-```
+That starts the API and the web app together; Ctrl+C stops both. Open http://localhost:5173 for the product, or http://localhost:5173/collect for volunteer data collection. If the ports are busy: `npm start -- --api-port 8002 --web-port 5175`.
 
-Open http://localhost:5173 for the product, or http://localhost:5173/collect for volunteer data collection.
+| Command | What it does |
+|---|---|
+| `npm run share` | Snapshot this laptop's recordings into `data/collected/` to commit |
+| `npm run typing` | Evaluate the keyboard model on all volunteer typing in `data/collected/` |
+| `npm run typing:calibrate` | The same, then re-set the keyboard thresholds on volunteer data |
 
 Train a model from collected data (see PLAN.md for the sandbox option):
 

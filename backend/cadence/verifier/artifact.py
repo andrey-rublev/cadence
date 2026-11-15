@@ -1,6 +1,11 @@
-"""Versioned model artifacts: what the API loads and what training writes."""
+"""Versioned model artifacts: what the API loads and what training writes.
+
+Each modality has its own directory and ACTIVE pointer: the challenge model sits directly in
+artifacts/models/, and passive models in artifacts/models/<modality>/ (keys, pointer).
+"""
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,6 +17,8 @@ from ..features.extract import FEATURE_NAMES, FEATURE_SCHEMA
 from .data import Verifier
 
 ACTIVE_POINTER = "ACTIVE"
+# Sources whose numbers say nothing about real people. Loaded only when explicitly allowed.
+SYNTHETIC_SOURCES = {"synthetic"}
 
 
 @dataclass
@@ -20,18 +27,23 @@ class Model:
     verifier: Verifier
     reject_at: float
     accept_at: float
-    # "volunteer" or "synthetic". A synthetic model says nothing about real people.
+    # Where the training data came from: "volunteer", "synthetic", "aalto", "sapimouse".
     source: str
     summary: dict[str, Any]
 
 
-def save(directory: Path, model: Model) -> None:
+def save(
+    directory: Path,
+    model: Model,
+    feature_names: Sequence[str] = FEATURE_NAMES,
+    schema: int = FEATURE_SCHEMA,
+) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     joblib.dump(
         {
             "version": model.version,
-            "feature_schema": FEATURE_SCHEMA,
-            "feature_names": list(FEATURE_NAMES),
+            "feature_schema": schema,
+            "feature_names": list(feature_names),
             "verifier": model.verifier,
             "reject_at": model.reject_at,
             "accept_at": model.accept_at,
@@ -39,11 +51,15 @@ def save(directory: Path, model: Model) -> None:
         },
         directory / "model.joblib",
     )
-    (directory / "eval.json").write_text(json.dumps(model.summary, indent=2))
+    (directory / "eval.json").write_text(json.dumps(model.summary, indent=2, allow_nan=False))
     (directory.parent / ACTIVE_POINTER).write_text(model.version)
 
 
-def load_active(root: Path | None = None) -> Model | None:
+def load_active(
+    root: Path | None = None,
+    feature_names: Sequence[str] = FEATURE_NAMES,
+    schema: int = FEATURE_SCHEMA,
+) -> Model | None:
     """The active model, or None when there is none this build can safely use.
 
     None is a normal state: the policy treats it as insufficient evidence and never approves.
@@ -59,9 +75,9 @@ def load_active(root: Path | None = None) -> Model | None:
     except (OSError, ValueError, KeyError):
         return None
     # A model trained on a different feature definition would score garbage silently.
-    if blob.get("feature_schema") != FEATURE_SCHEMA or blob.get("feature_names") != list(FEATURE_NAMES):
+    if blob.get("feature_schema") != schema or blob.get("feature_names") != list(feature_names):
         return None
-    if blob["source"] == "synthetic" and not settings.allow_synthetic_model:
+    if blob["source"] in SYNTHETIC_SOURCES and not settings.allow_synthetic_model:
         return None
     return Model(
         version=blob["version"],

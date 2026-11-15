@@ -1,0 +1,788 @@
+{
+  "dataset": "Aalto 136M Keystrokes (Dhakal et al., CHI 2018), QWERTY desktop and laptop keyboards",
+  "people": 1000,
+  "window_keys": 50,
+  "features": [
+    "hold_med",
+    "hold_iqr",
+    "hold_space_med",
+    "hold_modifier_med",
+    "dd_med",
+    "dd_iqr",
+    "dd_p90_ratio",
+    "ud_med",
+    "ud_iqr",
+    "rollover_rate",
+    "dd_cross_hand_med",
+    "dd_same_hand_med",
+    "dd_into_space_med",
+    "dd_out_of_space_med",
+    "backspace_rate",
+    "pause_rate"
+  ],
+  "caveats": [
+    "Enrollment and probes come from the same sitting (first and second half of 15 copied sentences); real use spans days and is less accurate.",
+    "Copy-typing of shown sentences, not free composition inside an app.",
+    "Each typist used their own keyboard, so device differences help separate people."
+  ],
+  "learning_curve": [
+    {
+      "model": "b0",
+      "auc": {
+        "value": 0.8872,
+        "low": 0.8803,
+        "high": 0.8944
+      },
+      "eer": {
+        "value": 0.1973,
+        "low": 0.1891,
+        "high": 0.2057
+      },
+      "auc_3": {
+        "value": 0.9091,
+        "low": 0.9023,
+        "high": 0.9169
+      },
+      "eer_3": {
+        "value": 0.1803,
+        "low": 0.1697,
+        "high": 0.1897
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0591,
+          "low": 0.0515,
+          "high": 0.0696
+        },
+        "impostor_fallback": {
+          "value": 0.3567,
+          "low": 0.3361,
+          "high": 0.3842
+        },
+        "genuine_accepted": {
+          "value": 0.6237,
+          "low": 0.6001,
+          "high": 0.6492
+        },
+        "genuine_rejected": {
+          "value": 0.0614,
+          "low": 0.05,
+          "high": 0.0719
+        },
+        "genuine_fallback": {
+          "value": 0.3149,
+          "low": 0.2908,
+          "high": 0.3365
+        },
+        "mean_rounds_genuine": 1.6128
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140127,
+      "training_people": 10
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9402,
+        "low": 0.936,
+        "high": 0.9448
+      },
+      "eer": {
+        "value": 0.1281,
+        "low": 0.122,
+        "high": 0.1338
+      },
+      "auc_3": {
+        "value": 0.9667,
+        "low": 0.9632,
+        "high": 0.9705
+      },
+      "eer_3": {
+        "value": 0.0927,
+        "low": 0.0851,
+        "high": 0.0992
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0611,
+          "low": 0.0552,
+          "high": 0.0683
+        },
+        "impostor_fallback": {
+          "value": 0.1322,
+          "low": 0.1226,
+          "high": 0.1428
+        },
+        "genuine_accepted": {
+          "value": 0.7733,
+          "low": 0.754,
+          "high": 0.7927
+        },
+        "genuine_rejected": {
+          "value": 0.0546,
+          "low": 0.046,
+          "high": 0.0634
+        },
+        "genuine_fallback": {
+          "value": 0.1721,
+          "low": 0.1564,
+          "high": 0.1874
+        },
+        "mean_rounds_genuine": 1.3857
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140127,
+      "training_people": 10
+    },
+    {
+      "model": "b0",
+      "auc": {
+        "value": 0.9002,
+        "low": 0.8945,
+        "high": 0.9064
+      },
+      "eer": {
+        "value": 0.184,
+        "low": 0.1761,
+        "high": 0.1907
+      },
+      "auc_3": {
+        "value": 0.9207,
+        "low": 0.9148,
+        "high": 0.927
+      },
+      "eer_3": {
+        "value": 0.1689,
+        "low": 0.1588,
+        "high": 0.1773
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0593,
+          "low": 0.0521,
+          "high": 0.0675
+        },
+        "impostor_fallback": {
+          "value": 0.3184,
+          "low": 0.2981,
+          "high": 0.342
+        },
+        "genuine_accepted": {
+          "value": 0.6678,
+          "low": 0.6464,
+          "high": 0.6906
+        },
+        "genuine_rejected": {
+          "value": 0.0648,
+          "low": 0.0553,
+          "high": 0.0742
+        },
+        "genuine_fallback": {
+          "value": 0.2674,
+          "low": 0.2484,
+          "high": 0.2859
+        },
+        "mean_rounds_genuine": 1.5235
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140117,
+      "training_people": 50
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9567,
+        "low": 0.9532,
+        "high": 0.9599
+      },
+      "eer": {
+        "value": 0.1074,
+        "low": 0.1023,
+        "high": 0.1135
+      },
+      "auc_3": {
+        "value": 0.9759,
+        "low": 0.9728,
+        "high": 0.9785
+      },
+      "eer_3": {
+        "value": 0.0788,
+        "low": 0.0734,
+        "high": 0.0859
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0593,
+          "low": 0.0537,
+          "high": 0.0653
+        },
+        "impostor_fallback": {
+          "value": 0.0819,
+          "low": 0.0753,
+          "high": 0.0891
+        },
+        "genuine_accepted": {
+          "value": 0.8493,
+          "low": 0.8346,
+          "high": 0.8655
+        },
+        "genuine_rejected": {
+          "value": 0.0573,
+          "low": 0.0471,
+          "high": 0.0682
+        },
+        "genuine_fallback": {
+          "value": 0.0934,
+          "low": 0.08,
+          "high": 0.1056
+        },
+        "mean_rounds_genuine": 1.246
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140117,
+      "training_people": 50
+    },
+    {
+      "model": "b0",
+      "auc": {
+        "value": 0.9016,
+        "low": 0.8961,
+        "high": 0.9072
+      },
+      "eer": {
+        "value": 0.1802,
+        "low": 0.1727,
+        "high": 0.188
+      },
+      "auc_3": {
+        "value": 0.922,
+        "low": 0.9162,
+        "high": 0.9283
+      },
+      "eer_3": {
+        "value": 0.162,
+        "low": 0.1522,
+        "high": 0.1729
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0604,
+          "low": 0.0536,
+          "high": 0.0694
+        },
+        "impostor_fallback": {
+          "value": 0.325,
+          "low": 0.306,
+          "high": 0.3474
+        },
+        "genuine_accepted": {
+          "value": 0.6704,
+          "low": 0.6493,
+          "high": 0.694
+        },
+        "genuine_rejected": {
+          "value": 0.0603,
+          "low": 0.0511,
+          "high": 0.0708
+        },
+        "genuine_fallback": {
+          "value": 0.2693,
+          "low": 0.2485,
+          "high": 0.2904
+        },
+        "mean_rounds_genuine": 1.5281
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 139925,
+      "training_people": 200
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9617,
+        "low": 0.9583,
+        "high": 0.965
+      },
+      "eer": {
+        "value": 0.1031,
+        "low": 0.0979,
+        "high": 0.1086
+      },
+      "auc_3": {
+        "value": 0.9784,
+        "low": 0.9758,
+        "high": 0.981
+      },
+      "eer_3": {
+        "value": 0.0733,
+        "low": 0.068,
+        "high": 0.0805
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0608,
+          "low": 0.0553,
+          "high": 0.0677
+        },
+        "impostor_fallback": {
+          "value": 0.0662,
+          "low": 0.0602,
+          "high": 0.0724
+        },
+        "genuine_accepted": {
+          "value": 0.8667,
+          "low": 0.8509,
+          "high": 0.8817
+        },
+        "genuine_rejected": {
+          "value": 0.0557,
+          "low": 0.0463,
+          "high": 0.0663
+        },
+        "genuine_fallback": {
+          "value": 0.0776,
+          "low": 0.0656,
+          "high": 0.0885
+        },
+        "mean_rounds_genuine": 1.2143
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 139925,
+      "training_people": 200
+    },
+    {
+      "model": "b0",
+      "auc": {
+        "value": 0.8995,
+        "low": 0.8936,
+        "high": 0.9055
+      },
+      "eer": {
+        "value": 0.1845,
+        "low": 0.1772,
+        "high": 0.1918
+      },
+      "auc_3": {
+        "value": 0.9201,
+        "low": 0.914,
+        "high": 0.9269
+      },
+      "eer_3": {
+        "value": 0.165,
+        "low": 0.1556,
+        "high": 0.1748
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0602,
+          "low": 0.0533,
+          "high": 0.0687
+        },
+        "impostor_fallback": {
+          "value": 0.328,
+          "low": 0.3089,
+          "high": 0.3538
+        },
+        "genuine_accepted": {
+          "value": 0.6588,
+          "low": 0.6354,
+          "high": 0.6817
+        },
+        "genuine_rejected": {
+          "value": 0.0606,
+          "low": 0.0503,
+          "high": 0.0717
+        },
+        "genuine_fallback": {
+          "value": 0.2806,
+          "low": 0.258,
+          "high": 0.3032
+        },
+        "mean_rounds_genuine": 1.5379
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140087,
+      "training_people": 800
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9644,
+        "low": 0.961,
+        "high": 0.9675
+      },
+      "eer": {
+        "value": 0.099,
+        "low": 0.0938,
+        "high": 0.1044
+      },
+      "auc_3": {
+        "value": 0.9806,
+        "low": 0.9779,
+        "high": 0.9828
+      },
+      "eer_3": {
+        "value": 0.0709,
+        "low": 0.0647,
+        "high": 0.0775
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0594,
+          "low": 0.0527,
+          "high": 0.0664
+        },
+        "impostor_fallback": {
+          "value": 0.061,
+          "low": 0.0556,
+          "high": 0.0677
+        },
+        "genuine_accepted": {
+          "value": 0.8798,
+          "low": 0.8659,
+          "high": 0.8941
+        },
+        "genuine_rejected": {
+          "value": 0.0595,
+          "low": 0.0497,
+          "high": 0.0697
+        },
+        "genuine_fallback": {
+          "value": 0.0606,
+          "low": 0.0512,
+          "high": 0.0705
+        },
+        "mean_rounds_genuine": 1.1857
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140087,
+      "training_people": 800
+    }
+  ],
+  "keys_per_check": [
+    {
+      "model": "b0",
+      "auc": {
+        "value": 0.8471,
+        "low": 0.8408,
+        "high": 0.8538
+      },
+      "eer": {
+        "value": 0.2349,
+        "low": 0.2268,
+        "high": 0.2414
+      },
+      "auc_3": {
+        "value": 0.8774,
+        "low": 0.8708,
+        "high": 0.8846
+      },
+      "eer_3": {
+        "value": 0.2123,
+        "low": 0.203,
+        "high": 0.2202
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0613,
+          "low": 0.0543,
+          "high": 0.0692
+        },
+        "impostor_fallback": {
+          "value": 0.4612,
+          "low": 0.4398,
+          "high": 0.4869
+        },
+        "genuine_accepted": {
+          "value": 0.5302,
+          "low": 0.509,
+          "high": 0.5492
+        },
+        "genuine_rejected": {
+          "value": 0.0602,
+          "low": 0.0519,
+          "high": 0.0688
+        },
+        "genuine_fallback": {
+          "value": 0.4097,
+          "low": 0.3906,
+          "high": 0.4265
+        },
+        "mean_rounds_genuine": 1.8531
+      },
+      "genuine_attempts": 14529,
+      "impostor_attempts": 290327,
+      "keys": 25
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9375,
+        "low": 0.933,
+        "high": 0.942
+      },
+      "eer": {
+        "value": 0.1384,
+        "low": 0.1325,
+        "high": 0.145
+      },
+      "auc_3": {
+        "value": 0.9648,
+        "low": 0.9613,
+        "high": 0.9681
+      },
+      "eer_3": {
+        "value": 0.1004,
+        "low": 0.094,
+        "high": 0.1065
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0599,
+          "low": 0.0539,
+          "high": 0.0664
+        },
+        "impostor_fallback": {
+          "value": 0.1334,
+          "low": 0.125,
+          "high": 0.1428
+        },
+        "genuine_accepted": {
+          "value": 0.7633,
+          "low": 0.7468,
+          "high": 0.7808
+        },
+        "genuine_rejected": {
+          "value": 0.0576,
+          "low": 0.0501,
+          "high": 0.0652
+        },
+        "genuine_fallback": {
+          "value": 0.1791,
+          "low": 0.1655,
+          "high": 0.1908
+        },
+        "mean_rounds_genuine": 1.4612
+      },
+      "genuine_attempts": 14529,
+      "impostor_attempts": 290327,
+      "keys": 25
+    },
+    {
+      "model": "b0",
+      "auc": {
+        "value": 0.8995,
+        "low": 0.8936,
+        "high": 0.9055
+      },
+      "eer": {
+        "value": 0.1845,
+        "low": 0.1772,
+        "high": 0.1918
+      },
+      "auc_3": {
+        "value": 0.9201,
+        "low": 0.914,
+        "high": 0.9269
+      },
+      "eer_3": {
+        "value": 0.165,
+        "low": 0.1556,
+        "high": 0.1748
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0602,
+          "low": 0.0533,
+          "high": 0.0687
+        },
+        "impostor_fallback": {
+          "value": 0.328,
+          "low": 0.3089,
+          "high": 0.3538
+        },
+        "genuine_accepted": {
+          "value": 0.6588,
+          "low": 0.6354,
+          "high": 0.6817
+        },
+        "genuine_rejected": {
+          "value": 0.0606,
+          "low": 0.0503,
+          "high": 0.0717
+        },
+        "genuine_fallback": {
+          "value": 0.2806,
+          "low": 0.258,
+          "high": 0.3032
+        },
+        "mean_rounds_genuine": 1.5379
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140087,
+      "keys": 50
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9644,
+        "low": 0.961,
+        "high": 0.9675
+      },
+      "eer": {
+        "value": 0.099,
+        "low": 0.0938,
+        "high": 0.1044
+      },
+      "auc_3": {
+        "value": 0.9806,
+        "low": 0.9779,
+        "high": 0.9828
+      },
+      "eer_3": {
+        "value": 0.0709,
+        "low": 0.0647,
+        "high": 0.0775
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0594,
+          "low": 0.0527,
+          "high": 0.0664
+        },
+        "impostor_fallback": {
+          "value": 0.061,
+          "low": 0.0556,
+          "high": 0.0677
+        },
+        "genuine_accepted": {
+          "value": 0.8798,
+          "low": 0.8659,
+          "high": 0.8941
+        },
+        "genuine_rejected": {
+          "value": 0.0595,
+          "low": 0.0497,
+          "high": 0.0697
+        },
+        "genuine_fallback": {
+          "value": 0.0606,
+          "low": 0.0512,
+          "high": 0.0705
+        },
+        "mean_rounds_genuine": 1.1857
+      },
+      "genuine_attempts": 7010,
+      "impostor_attempts": 140087,
+      "keys": 50
+    },
+    {
+      "model": "b0",
+      "auc": {
+        "value": 0.9293,
+        "low": 0.9239,
+        "high": 0.9351
+      },
+      "eer": {
+        "value": 0.1549,
+        "low": 0.1461,
+        "high": 0.1624
+      },
+      "auc_3": {
+        "value": 0.9446,
+        "low": 0.9394,
+        "high": 0.951
+      },
+      "eer_3": {
+        "value": 0.1413,
+        "low": 0.1283,
+        "high": 0.1513
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0574,
+          "low": 0.0504,
+          "high": 0.0667
+        },
+        "impostor_fallback": {
+          "value": 0.237,
+          "low": 0.2193,
+          "high": 0.2598
+        },
+        "genuine_accepted": {
+          "value": 0.725,
+          "low": 0.6977,
+          "high": 0.7536
+        },
+        "genuine_rejected": {
+          "value": 0.059,
+          "low": 0.0472,
+          "high": 0.0712
+        },
+        "genuine_fallback": {
+          "value": 0.216,
+          "low": 0.1914,
+          "high": 0.2418
+        },
+        "mean_rounds_genuine": 1.3677
+      },
+      "genuine_attempts": 3267,
+      "impostor_attempts": 65344,
+      "keys": 100
+    },
+    {
+      "model": "m2",
+      "auc": {
+        "value": 0.9801,
+        "low": 0.9775,
+        "high": 0.9825
+      },
+      "eer": {
+        "value": 0.0716,
+        "low": 0.0662,
+        "high": 0.0779
+      },
+      "auc_3": {
+        "value": 0.9895,
+        "low": 0.9875,
+        "high": 0.9913
+      },
+      "eer_3": {
+        "value": 0.0504,
+        "low": 0.0439,
+        "high": 0.0576
+      },
+      "policy": {
+        "impostor_accepted": {
+          "value": 0.0561,
+          "low": 0.0497,
+          "high": 0.0634
+        },
+        "impostor_fallback": {
+          "value": 0.0178,
+          "low": 0.0151,
+          "high": 0.021
+        },
+        "genuine_accepted": {
+          "value": 0.9253,
+          "low": 0.9121,
+          "high": 0.94
+        },
+        "genuine_rejected": {
+          "value": 0.0493,
+          "low": 0.0385,
+          "high": 0.062
+        },
+        "genuine_fallback": {
+          "value": 0.0254,
+          "low": 0.0165,
+          "high": 0.0331
+        },
+        "mean_rounds_genuine": 1.0561
+      },
+      "genuine_attempts": 3267,
+      "impostor_attempts": 65344,
+      "keys": 100
+    }
+  ]
+}

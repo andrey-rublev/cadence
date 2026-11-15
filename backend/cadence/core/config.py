@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     challenge_rate_collect: int = 24
     challenge_rate_verify: int = 5
 
+    # What a collection session records. The no-game branch collects typing; "challenge" is main's game.
+    collect_mode: str = "typing"
+    collect_typing_windows: int = 6  # 50-key typing samples per collection session (about 300 keys)
     collect_rounds: int = 6  # scored rounds per collection session, after one warm-up
     split_salt: str = "cadence-split-v1"
 
@@ -35,6 +38,15 @@ class Settings(BaseSettings):
     verify_max_rounds: int = 3  # one round, plus up to two more while the result is uncertain
     # Development only: lets a model trained on synthetic players gate actions.
     allow_synthetic_model: bool = False
+
+    # Passive checks (no challenge): windows of ordinary pointer and keyboard use.
+    passive_min_sessions: int = 2  # an enrollment must span this many sign-ins per modality
+    passive_min_windows: int = 6  # and this many windows per modality
+    passive_evidence_ttl_s: int = 600  # evidence older than this does not count towards a check
+    passive_evidence_windows: int = 3  # the most recent windows per modality that a check uses
+    passive_rate_window_s: int = 600
+    passive_rate_limit: int = 40  # windows accepted per session per rate window
+    passive_clock_slack_ms: int = 2000
 
     retention_days: int = 30
     max_body_bytes: int = 4_000_000

@@ -11,8 +11,8 @@ import { api, explain, type CollectStatus } from '@/lib/api'
 const STATION_KEY = 'cadence.station'
 
 const DEVICES = [
-  { value: 'mouse', label: 'Mouse' },
-  { value: 'trackpad', label: 'Trackpad' },
+  { value: 'laptop-keys', label: 'Laptop keyboard' },
+  { value: 'external-keys', label: 'Separate keyboard' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -28,7 +28,7 @@ function Choice({ value, label }: { value: string; label: string }) {
 export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) => void }) {
   const [returning, setReturning] = useState('no')
   const [username, setUsername] = useState('')
-  const [device, setDevice] = useState('mouse')
+  const [device, setDevice] = useState('laptop-keys')
   const [station, setStation] = useState(() => localStorage.getItem(STATION_KEY) ?? '')
   const [error, setError] = useState<string | null>(null)
   /** The typed username has no sessions on this laptop; offer to continue anyway. */
@@ -90,7 +90,7 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
       </div>
 
       <fieldset>
-        <legend className="mb-2.5 font-medium">What are you pointing with right now?</legend>
+        <legend className="mb-2.5 font-medium">What are you typing on right now?</legend>
         <RadioGroup value={device} onValueChange={(v) => setDevice(v as string)} className="grid gap-2.5 sm:grid-cols-3">
           {DEVICES.map((d) => (
             <Choice key={d.value} {...d} />
@@ -132,7 +132,8 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
 
       <div className="grid gap-2">
         <p id="collection-consent" className="text-sm text-muted-foreground">
-          The game records your pointer movements for training and testing.
+          You will type short answers for about three minutes. We record when each key goes down and up and which
+          part of the keyboard it is on, never the text, for training and testing.
         </p>
         <Button type="submit" size="lg" disabled={busy} aria-describedby="collection-consent" className="h-12 text-base">
           {busy ? 'Starting…' : 'Agree and start session'}

@@ -1,5 +1,6 @@
 import json
 import secrets
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -9,13 +10,15 @@ from ..core.db import Db
 from ..core.models import Verification, now
 from ..core.security import CurrentSession, require_client_header
 from ..demo_data import CUSTOMERS
-from ..policy import decide
+from ..passive import MODALITIES, decide_passive, passive_model
+from ..policy import CONSISTENT, decide
 from ..product import (
     EXPORT_CUSTOMERS,
     PROTECTED_ACTIONS,
     CurrentAccount,
     active_model,
     enrollment,
+    issue_grant,
     redeem_grant,
 )
 
@@ -33,22 +36,39 @@ def customers(account: CurrentAccount) -> dict:
 
 
 @router.post("/actions/{action}/authorize")
-def authorize(action: str, account: CurrentAccount, session: CurrentSession, db: Db) -> dict:
-    """Open a verification for a protected action and say what evidence is needed."""
+def authorize(
+    action: str,
+    account: CurrentAccount,
+    session: CurrentSession,
+    db: Db,
+    method: Literal["passive", "challenge"] = "passive",
+) -> dict:
+    """Open a verification for a protected action.
+
+    passive (default): decide now from recent ordinary use; a consistent result releases the
+    action at once. challenge: say what challenge evidence is needed (rounds follow).
+    """
     if action not in PROTECTED_ACTIONS:
         raise HTTPException(404, "unknown_action")
-    vectors, sessions = enrollment(db, account.id)
-    decision = decide(active_model(), vectors, sessions, probes=[])
+    if method == "passive":
+        decision = decide_passive(db, account.id, session).to_dict()
+    else:
+        vectors, sessions = enrollment(db, account.id)
+        decision = decide(active_model(), vectors, sessions, probes=[]).to_dict()
     verification = Verification(
         id=secrets.token_hex(16),
         session_id=session.id,
         account_id=account.id,
         action=action,
-        decision_json=json.dumps(decision.to_dict()),
+        decision_json=json.dumps(decision),
     )
     db.add(verification)
+    grant = None
+    if method == "passive" and decision["outcome"] == CONSISTENT:
+        verification.resolved_by = "behavior"
+        grant = issue_grant(db, session, action, basis="behavior")
     db.commit()
-    return {"verification_id": verification.id, "decision": decision.to_dict()}
+    return {"verification_id": verification.id, "method": method, "decision": decision, "grant": grant.id if grant else None}
 
 
 @router.post("/export")
@@ -60,9 +80,15 @@ def export(body: ExportBody, account: CurrentAccount, session: CurrentSession, d
 
 @router.get("/model")
 def model_summary(account: CurrentAccount) -> dict | None:
-    """What the active model was trained and tested on, exactly as the training script wrote it."""
+    """What the active challenge model was trained and tested on, exactly as the training script wrote it."""
     model = active_model()
     return None if model is None else model.summary
+
+
+@router.get("/passive/models")
+def passive_models(account: CurrentAccount) -> dict:
+    """Summaries of the passive keyboard and pointer models, as their training scripts wrote them."""
+    return {modality: None if (m := passive_model(modality)) is None else m.summary for modality in MODALITIES}
 
 
 @router.get("/verifications")

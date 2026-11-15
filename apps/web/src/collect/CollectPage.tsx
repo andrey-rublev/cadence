@@ -6,11 +6,31 @@ import { api, type CollectStatus } from '@/lib/api'
 
 import { ConsentForm } from './ConsentForm'
 import { SessionScreen } from './SessionScreen'
+import { TypingSession } from './TypingSession'
 
 type Stage = 'loading' | 'intro' | 'session' | 'stopped'
 
 function Complete({ status, onExit }: { status: CollectStatus; onExit: () => void }) {
   const first = status.label === 'A'
+  if (status.mode === 'typing') {
+    return (
+      <div className="mx-auto grid max-w-xl justify-items-start gap-6 py-10">
+        <p className="font-mono text-sm text-muted-foreground">
+          {status.username} · session {status.label} recorded
+        </p>
+        <h1 className="text-5xl font-extrabold">{first ? 'One session down.' : 'Recorded. Thank you.'}</h1>
+        <p className="text-lg text-muted-foreground">
+          Typing changes from day to day, and that change is exactly what we need to measure. If you can, come back on
+          a <strong className="text-foreground">different day</strong>, choose "Yes" on the first screen and enter{' '}
+          <span className="font-mono text-foreground">{status.username}</span> again. Another laptop or keyboard helps
+          too.
+        </p>
+        <Button size="lg" onClick={onExit} className="h-12 px-6 text-base">
+          Finish and hand back the laptop
+        </Button>
+      </div>
+    )
+  }
   return (
     <div className="mx-auto grid max-w-xl justify-items-start gap-6 py-10">
       <p className="font-mono text-sm text-muted-foreground">
@@ -90,7 +110,11 @@ export function CollectPage() {
         )}
         {stage === 'session' && status && !status.complete && (
           <div className="mx-auto max-w-[800px]">
-            <SessionScreen status={status} onStatus={setStatus} onExit={() => exit('stopped')} />
+            {status.mode === 'typing' ? (
+              <TypingSession status={status} onStatus={setStatus} onExit={() => exit('stopped')} />
+            ) : (
+              <SessionScreen status={status} onStatus={setStatus} onExit={() => exit('stopped')} />
+            )}
           </div>
         )}
         {stage === 'session' && status?.complete && <Complete status={status} onExit={() => exit('intro')} />}

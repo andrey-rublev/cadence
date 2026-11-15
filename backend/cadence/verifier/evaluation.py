@@ -113,9 +113,16 @@ def _split(attempts: list[Attempt]) -> tuple[np.ndarray, np.ndarray]:
 
 def nested_thresholds(attempts: list[Attempt], target_error: float = TARGET_ERROR) -> dict[str, tuple[float, float]]:
     """target -> (reject_at, accept_at) chosen without any attempt that involves that target."""
+    names = sorted({x for a in attempts for x in (a.target, a.claimant)})
+    index = {name: i for i, name in enumerate(names)}
+    targets = np.array([index[a.target] for a in attempts])
+    claimants = np.array([index[a.claimant] for a in attempts])
+    scores = np.array([a.score for a in attempts])
+    genuine_mask = targets == claimants
     thresholds = {}
     for target in {a.target for a in attempts}:
-        genuine, impostor = _split([a for a in attempts if target not in (a.target, a.claimant)])
+        keep = (targets != index[target]) & (claimants != index[target])
+        genuine, impostor = scores[keep & genuine_mask], scores[keep & ~genuine_mask]
         if genuine.size and impostor.size:
             thresholds[target] = choose_thresholds(genuine, impostor, target_error)
     return thresholds

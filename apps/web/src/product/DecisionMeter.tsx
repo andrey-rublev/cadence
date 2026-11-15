@@ -1,11 +1,17 @@
-import type { Decision } from '@/lib/product'
+interface DecisionMeterProps {
+  score: number | null
+  rejectAt: number | null
+  acceptAt: number | null
+  /** What the score summarises, for example "averaged over 3 samples of typing". */
+  basis?: string
+  label?: string
+}
 
 /**
  * Where a similarity score sits against the two decision thresholds.
  * Deliberately shows no percentage: the score is not a probability of identity.
  */
-export function DecisionMeter({ decision }: { decision: Decision }) {
-  const { score, reject_at: reject, accept_at: accept } = decision
+export function DecisionMeter({ score, rejectAt: reject, acceptAt: accept, basis, label }: DecisionMeterProps) {
   if (score === null || reject === null || accept === null) return null
 
   const low = Math.min(score, reject)
@@ -21,6 +27,7 @@ export function DecisionMeter({ decision }: { decision: Decision }) {
 
   return (
     <figure className="grid gap-2">
+      {label && <p className="text-sm font-medium">{label}</p>}
       <div className="relative h-3 rounded-full bg-muted" aria-hidden="true">
         {zones.map((zone) => (
           <span
@@ -41,8 +48,7 @@ export function DecisionMeter({ decision }: { decision: Decision }) {
       </div>
       <figcaption className="text-sm text-muted-foreground">
         Similarity {score.toFixed(2)} against thresholds {reject.toFixed(2)} and {accept.toFixed(2)}
-        {decision.rounds > 1 && `, averaged over ${decision.rounds} rounds`}. This is a similarity score, not a
-        probability that it is you.
+        {basis && `, ${basis}`}. This is a similarity score, not a probability that it is you.
       </figcaption>
     </figure>
   )

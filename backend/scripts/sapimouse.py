@@ -26,6 +26,7 @@ import hashlib
 import io
 import json
 import random
+import time
 import zipfile
 from collections import defaultdict
 from pathlib import Path
@@ -33,11 +34,13 @@ from pathlib import Path
 import numpy as np
 from experiments import load_raw  # same directory
 
-from cadence.core.config import REPO_ROOT
-from cadence.features.strokes import K_FEATURE_NAMES, strokes, window_vector
+from cadence.core.config import REPO_ROOT, settings
+from cadence.features.strokes import K_FEATURE_NAMES, K_SCHEMA, strokes, window_vector
+from cadence.verifier.artifact import Model, save
 from cadence.verifier.baseline import Baseline
 from cadence.verifier.data import Round, sessions_by_person
-from cadence.verifier.evaluation import Attempt, cross_validate, evaluate
+from cadence.verifier.evaluation import Attempt, cross_validate, evaluate, select
+from cadence.verifier.metrics import choose_thresholds
 from cadence.verifier.pairwise import fit_pairwise
 
 FOLDS = 5
@@ -144,15 +147,48 @@ def volunteer_k_rounds(databases: list[Path]) -> list[Round]:
     ]
 
 
+def save_pointer_model(rounds: list[Round], people: int) -> None:
+    """The passive pointer model: selected and thresholded on held-out people, refitted on all."""
+    held_out = {m: folded(rounds, m) for m in FITS}
+    comparison = evaluate(held_out, reps=REPS)
+    chosen, reason = select(comparison)
+    genuine = np.array([a.score for a in held_out[chosen] if a.genuine])
+    impostor = np.array([a.score for a in held_out[chosen] if not a.genuine])
+    reject_at, accept_at = choose_thresholds(genuine, impostor)
+    version = time.strftime(f"pointer-{chosen}-%Y%m%d-%H%M%S")
+    summary = {
+        "version": version,
+        "modality": "pointer",
+        "source": "sapimouse",
+        "model": NAMES[chosen],
+        "selected": {"id": chosen, "name": NAMES[chosen], "reason": reason},
+        "window": WINDOW,
+        "participants": {"total": people},
+        "thresholds": {"reject_at": reject_at, "accept_at": accept_at, "target_error": 0.05},
+        "models": [comparison[m] | {"id": m, "name": NAMES[m]} for m in FITS],
+        "limitations": [
+            "Trained and thresholded on SapiMouse: free-form use, both sessions on the same day, each person on their own computer.",
+            "Thresholds have not been calibrated on people using this app or sharing a computer.",
+        ],
+    }
+    model = Model(version, FITS[chosen](rounds), reject_at, accept_at, "sapimouse", summary)
+    save(settings.artifacts_dir / "pointer" / version, model, feature_names=K_FEATURE_NAMES, schema=K_SCHEMA)
+    print(f"Activated pointer model {version} ({NAMES[chosen]}; {reason})")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--zip", type=Path, required=True, help="sapimouse.zip, downloaded from the dataset page")
     parser.add_argument("--db", type=Path, action="append", default=[], help="volunteer databases for the transfer test")
+    parser.add_argument("--model-only", action="store_true", help="skip the experiments; train and activate the pointer model")
     args = parser.parse_args()
 
     data = load_sapimouse(args.zip)
     s_per_stroke = float(np.median([d["s_per_stroke"] for d in data.values()]))
     rounds = to_rounds(data, WINDOW)
+    if args.model_only:
+        save_pointer_model(rounds, len(data))
+        return
     report: dict = {
         "dataset": "SapiMouse (Antal et al. 2021), 3-minute enrollment and 1-minute probe session per person",
         "people": len(data),

@@ -95,7 +95,7 @@ def enrolled_owner(client):
 
 def verify(client, profile, seed=900):
     """Run verification rounds until the attempt resolves or rounds run out."""
-    opened = client.post("/api/actions/export_customers/authorize").json()
+    opened = client.post("/api/actions/export_customers/authorize?method=challenge").json()
     result = {"decision": opened["decision"], "grant": None}
     for i in range(settings.verify_max_rounds):
         result = play_round(client, "verify", profile, seed + i, opened["verification_id"]).json()
@@ -147,7 +147,7 @@ def test_export_is_refused_without_a_grant(client, model):
 
 def test_missing_model_never_approves_but_fallback_still_works(client, no_model):
     enrolled_owner(client)
-    opened = client.post("/api/actions/export_customers/authorize").json()
+    opened = client.post("/api/actions/export_customers/authorize?method=challenge").json()
     assert opened["decision"]["outcome"] == "INSUFFICIENT_EVIDENCE"
     assert opened["decision"]["reason"] == "model_missing"
     played = play_round(client, "verify", OWNER, 1, opened["verification_id"]).json()
@@ -160,7 +160,7 @@ def test_missing_model_never_approves_but_fallback_still_works(client, no_model)
 
 def test_account_without_a_profile_gets_insufficient_evidence_not_a_mismatch(client, model):
     client.post("/api/auth/register", json=credentials())
-    decision = client.post("/api/actions/export_customers/authorize").json()["decision"]
+    decision = client.post("/api/actions/export_customers/authorize?method=challenge").json()["decision"]
     assert decision["outcome"] == "INSUFFICIENT_EVIDENCE" and decision["reason"] == "not_enrolled"
 
 
@@ -206,7 +206,7 @@ def test_grant_expires(client, model):
 
 def test_verification_challenges_are_rate_limited(client, model):
     enrolled_owner(client)
-    verification_id = client.post("/api/actions/export_customers/authorize").json()["verification_id"]
+    verification_id = client.post("/api/actions/export_customers/authorize?method=challenge").json()["verification_id"]
     body = {"purpose": "verify", "verification_id": verification_id}
     codes = [client.post("/api/challenges", json=body).status_code for _ in range(settings.challenge_rate_verify + 1)]
     assert codes == [200] * settings.challenge_rate_verify + [429]
@@ -218,5 +218,5 @@ def test_deleting_the_profile_needs_trust_and_removes_everything(client, model):
     trust(client)
     me = client.delete("/api/profile").json()
     assert me["profile"]["rounds"] == 0 and not me["consent"]
-    decision = client.post("/api/actions/export_customers/authorize").json()["decision"]
+    decision = client.post("/api/actions/export_customers/authorize?method=challenge").json()["decision"]
     assert decision["reason"] == "not_enrolled"

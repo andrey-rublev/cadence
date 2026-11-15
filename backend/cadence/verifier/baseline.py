@@ -5,6 +5,7 @@ The score is a similarity (higher = more like the enrolled owner). It is not a
 probability of identity and must never be shown as one.
 """
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -19,8 +20,10 @@ class Baseline:
 
     @classmethod
     def fit(cls, train: np.ndarray) -> "Baseline":
-        center = np.nanmedian(train, axis=0)
-        q75, q25 = np.nanpercentile(train, [75, 25], axis=0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # features missing from every row
+            center = np.nanmedian(train, axis=0)
+            q75, q25 = np.nanpercentile(train, [75, 25], axis=0)
         scale = q75 - q25
         # A feature with no spread carries no information; an infinite scale zeroes it out.
         scale = np.where(np.isfinite(scale) & (scale > 1e-9), scale, np.inf)
@@ -34,7 +37,9 @@ class Baseline:
         return float(self.score_many(enrollment, np.atleast_2d(probe))[0])
 
     def score_many(self, enrollment: np.ndarray, probes: np.ndarray) -> np.ndarray:
-        template = np.nanmedian(self._z(enrollment), axis=0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # features missing from every row
+            template = np.nanmedian(self._z(enrollment), axis=0)
         distance = np.abs(self._z(probes) - template)
         usable = np.isfinite(distance) & np.isfinite(self.scale)
         total = np.where(usable, distance, 0.0).sum(axis=1)
