@@ -25,7 +25,8 @@ from ..features.keys import window_vector as key_vector
 from ..features.strokes import K_SCHEMA, strokes
 from ..features.strokes import window_vector as stroke_vector
 from ..passive import passive_profile
-from ..product import CurrentAccount, is_trusted
+from ..product import CurrentAccount
+from ..setup import learning_open
 
 router = APIRouter(prefix="/api", tags=["passive"], dependencies=[Depends(require_client_header)])
 
@@ -41,6 +42,36 @@ class PassiveBody(BaseModel):
     # pointer: [t_ms, x, y, kind, buttons]; keys: [t_ms, kind, zone]
     events: list[list[Number]] = Field(min_length=2, max_length=40_000)
     duration_ms: Number = Field(ge=0, le=MAX_WINDOW_MS)
+
+
+class Activity(BaseModel):
+    """A stretch of ordinary activity of any length: what a page saw before a sign-in or an action."""
+
+    keys: list[list[Number]] = Field(default_factory=list, max_length=4_000)
+    pointer: list[list[Number]] = Field(default_factory=list, max_length=40_000)
+
+
+def check_events(modality: str, events: list[list[float]]) -> float:
+    """Shape and ordering of raw events. Returns the last timestamp."""
+    width = 5 if modality == "pointer" else 3
+    last = 0.0
+    for event in events:
+        if len(event) != width:
+            raise HTTPException(422, "malformed_event")
+        t, kind = event[0], int(event[3] if width == 5 else event[1])
+        if t < last or t > MAX_WINDOW_MS:
+            raise HTTPException(422, "timestamps_not_monotonic")
+        last = t
+        if width == 5 and kind not in (0, 1, 2):
+            raise HTTPException(422, "malformed_event")
+        if width == 3 and (kind not in (1, 2) or not 0 <= event[2] <= MODIFIER or event[2] != math.floor(event[2])):
+            raise HTTPException(422, "malformed_event")
+    return last
+
+
+def check_activity(activity: Activity) -> None:
+    check_events("keys", activity.keys)
+    check_events("pointer", activity.pointer)
 
 
 def _validate(body: PassiveBody) -> None:
@@ -129,7 +160,7 @@ def submit_window(body: PassiveBody, account: CurrentAccount, session: CurrentSe
     """Store one window as enrollment (trusted session) or as evidence for this session."""
     if account.consent_at is None:
         raise HTTPException(403, "consent_required")
-    purpose = "enroll" if is_trusted(session) else "evidence"
+    purpose = "enroll" if learning_open(account, session) else "evidence"
     ingest(db, body, session, purpose=purpose, keep_raw=account.keep_raw, account_id=account.id)
     db.commit()
     return {"purpose": purpose, "modality": body.modality, "passive": passive_profile(db, account.id, session)}

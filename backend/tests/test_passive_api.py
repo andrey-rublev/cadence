@@ -5,11 +5,16 @@ The keyboard model here is fitted on two SYNTHETIC typists. These tests check wi
 enforcement, not how well real people are told apart.
 """
 
+import time
+
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 
 from cadence.core.config import settings
+from cadence.core.db import SessionLocal
+from cadence.core.models import Account
 from cadence.features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA, presses_from_events, window_vector
 from cadence.main import app
 from cadence.verifier.artifact import Model, save
@@ -83,6 +88,13 @@ def enroll_two_sign_ins(client: TestClient, rng) -> None:
             assert client.post("/api/passive", json=body(typing(OWNER, rng)), headers=HEADERS).json()["purpose"] == "enroll"
 
 
+def finish_setup(name: str = "maya") -> None:
+    """Close setup, as the click test, typing test and repeat sign-ins would."""
+    with SessionLocal() as db:
+        db.execute(update(Account).where(Account.username == name).values(setup_completed_at=time.time()))
+        db.commit()
+
+
 def authorize(client: TestClient) -> dict:
     return client.post("/api/actions/export_customers/authorize", headers=HEADERS).json()
 
@@ -94,11 +106,14 @@ def test_consent_is_required(keys_model):
     assert response.status_code == 403 and response.json()["detail"] == "consent_required"
 
 
-def test_untrusted_windows_are_evidence_not_enrollment(keys_model):
+def test_setup_windows_enroll_and_later_untrusted_windows_are_evidence(keys_model):
     client = consented_client()
-    result = client.post("/api/passive", json=body(typing(OWNER, np.random.default_rng(1))), headers=HEADERS).json()
+    rng = np.random.default_rng(1)
+    assert client.post("/api/passive", json=body(typing(OWNER, rng)), headers=HEADERS).json()["purpose"] == "enroll"
+    finish_setup()
+    result = client.post("/api/passive", json=body(typing(OWNER, rng)), headers=HEADERS).json()
     assert result["purpose"] == "evidence"
-    assert result["passive"]["keys"]["windows"] == 0 and result["passive"]["keys"]["recent_evidence"] == 1
+    assert result["passive"]["keys"]["windows"] == 1 and result["passive"]["keys"]["recent_evidence"] == 1
 
 
 def test_an_identical_window_is_rejected(keys_model):
@@ -140,6 +155,7 @@ def test_owner_is_released_without_a_challenge_and_a_stranger_is_held(keys_model
     rng = np.random.default_rng(3)
     client = consented_client()
     enroll_two_sign_ins(client, rng)
+    finish_setup()
 
     sign_in(client)  # a fresh, untrusted session
     assert authorize(client)["decision"]["reason"] == "no_interaction_yet"

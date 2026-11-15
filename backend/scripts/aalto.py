@@ -31,7 +31,15 @@ from pathlib import Path
 import numpy as np
 
 from cadence.core.config import REPO_ROOT, settings
-from cadence.features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA, window_vector, windows, zone_of_keycode
+from cadence.features.keys import (
+    HIDDEN,
+    KEY_FEATURE_NAMES,
+    KEY_SCHEMA,
+    MODIFIER,
+    window_vector,
+    windows,
+    zone_of_keycode,
+)
 from cadence.verifier.artifact import Model, save
 from cadence.verifier.baseline import Baseline
 from cadence.verifier.data import Round, sessions_by_person
@@ -47,6 +55,7 @@ FITS = {
     "m2": lambda rs: fit_pairwise(rs, "boosting", negatives_per_template=100),
 }
 NAMES = {"b0": "B0 keystroke distance", "m2": "M2 pairwise boosting"}
+PROBE_KEYS: dict[tuple[str, int], int] = {}  # (participant, round) -> keys in a login-length probe
 
 
 def load_aalto(path: Path, people: int) -> dict[str, dict[str, list]]:
@@ -103,6 +112,34 @@ def to_rounds(data: dict[str, dict[str, list]], size: int) -> list[Round]:
     return [r for r in rounds if len(people[r.participant]) == 2]
 
 
+def to_short_rounds(
+    data: dict[str, dict[str, list]], low: int, high: int, hidden_share: float, seed: int = 0
+) -> list[Round]:
+    """Login-length probes: enrollment stays in 50-key windows; the probe half is cut into
+    windows of `low`-`high` keys, the last `hidden_share` of each with its zones hidden, as a
+    password field sends them (timing only)."""
+    rng = random.Random(seed)
+    rounds = []
+    for pid, d in data.items():
+        for i, w in enumerate(windows(d["enroll"], WINDOW)):
+            rounds.append(Round(pid, "", f"{pid}:enroll", i, window_vector(w), pid))
+        presses, i = d["probe"], 0
+        while True:
+            size = rng.randint(low, high)
+            typing = [p for p in presses if p[2] != MODIFIER]
+            if len(typing) < size:
+                break
+            cut = presses.index(typing[size - 1]) + 1
+            window, presses = presses[:cut], presses[cut:]
+            secret_from = int(len(window) * (1 - hidden_share))
+            window = window[:secret_from] + [(d0, u0, HIDDEN) for d0, u0, _ in window[secret_from:]]
+            rounds.append(Round(pid, "", f"{pid}:probe", 1_000_000 + i, window_vector(window), pid))
+            PROBE_KEYS[(pid, 1_000_000 + i)] = size
+            i += 1
+    people = sessions_by_person(rounds)
+    return [r for r in rounds if len(people[r.participant]) == 2]
+
+
 def folded(rounds: list[Round], model: str, train_size: int | None = None, seed: int = 0) -> list[Attempt]:
     people = sessions_by_person(rounds)
     order = sorted(people, key=lambda n: hashlib.sha256(f"fold:{n}".encode()).hexdigest())
@@ -154,10 +191,16 @@ def main() -> None:
     parser.add_argument("--zip", type=Path, required=True)
     parser.add_argument("--people", type=int, default=2000)
     parser.add_argument("--no-model", action="store_true", help="run the experiments only")
+    parser.add_argument(
+        "--login", action="store_true", help="train the login-length model (probes of 15-45 keys, password part hidden)"
+    )
     args = parser.parse_args()
 
     started = time.time()
     data = load_aalto(args.zip, args.people)
+    if args.login:
+        login_model(data)
+        return
     rounds = to_rounds(data, WINDOW)
     n = len({r.participant for r in rounds})
     print(f"{n} typists, {len(rounds)} windows of {WINDOW} keys (loaded in {time.time() - started:.0f} s)\n")
@@ -221,6 +264,61 @@ def main() -> None:
     model = Model(version, FITS[chosen](rounds), reject_at, accept_at, "aalto", summary)
     save(settings.artifacts_dir / "keys" / version, model, feature_names=KEY_FEATURE_NAMES, schema=KEY_SCHEMA)
     print(f"Activated keyboard model {version} ({NAMES[chosen]}; {reason})")
+
+
+LOGIN_LOW, LOGIN_HIGH, LOGIN_HIDDEN = 15, 45, 0.4
+LOGIN_BANDS = ((15, 24), (25, 34), (35, 45))
+
+
+def login_model(data: dict[str, dict[str, list]]) -> None:
+    """A model for the short, partly hidden typing of a sign-in, scored against a profile of
+    50-key windows. Separate thresholds, because short probes score differently."""
+    rounds = to_short_rounds(data, LOGIN_LOW, LOGIN_HIGH, LOGIN_HIDDEN)
+    n = len({r.participant for r in rounds})
+    print(f"{n} typists; probes of {LOGIN_LOW}-{LOGIN_HIGH} keys, last {LOGIN_HIDDEN:.0%} with zones hidden\n")
+    held_out = {m: folded(rounds, m) for m in FITS}
+    comparison = evaluate(held_out, reps=REPS)
+    chosen, reason = select(comparison)
+    for m in FITS:
+        print(f"   {NAMES[m]:<24} {fmt(result(m, held_out[m]))}")
+    bands = []
+    for low, high in LOGIN_BANDS:
+        subset = [a for a in held_out[chosen] if low <= PROBE_KEYS.get((a.claimant, a.at), 0) <= high]
+        r = result(chosen, subset) | {"keys": [low, high]}
+        bands.append(r)
+        print(f"   {low}-{high} keys  {fmt(r)}")
+    genuine = np.array([a.score for a in held_out[chosen] if a.genuine])
+    impostor = np.array([a.score for a in held_out[chosen] if not a.genuine])
+    reject_at, accept_at = choose_thresholds(genuine, impostor)
+    version = time.strftime(f"keys-login-{chosen}-%Y%m%d-%H%M%S")
+    caveats = [
+        "Enrollment and probes come from the same sitting of copied sentences; real sign-ins on other days are harder.",
+        "Probes are cut from free sentences, not the same email and password typed every time.",
+        "The hidden part simulates a password field (timing only); real passwords are shorter or longer.",
+        "Thresholds were set on Aalto typists; they have not been calibrated on people using Cadence.",
+    ]
+    summary = {
+        "version": version,
+        "modality": "keys",
+        "use": "login",
+        "source": "aalto",
+        "model": NAMES[chosen],
+        "selected": {"id": chosen, "name": NAMES[chosen], "reason": reason},
+        "window": WINDOW,
+        "probe_keys": [LOGIN_LOW, LOGIN_HIGH],
+        "hidden_share": LOGIN_HIDDEN,
+        "participants": {"total": n},
+        "thresholds": {"reject_at": reject_at, "accept_at": accept_at, "target_error": 0.05},
+        "models": [comparison[m] | {"id": m, "name": NAMES[m]} for m in FITS],
+        "by_keys": bands,
+        "limitations": caveats,
+    }
+    out = REPO_ROOT / "artifacts" / "reports" / "aalto-login.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(summary, indent=2, allow_nan=False))
+    model = Model(version, FITS[chosen](rounds), reject_at, accept_at, "aalto", summary)
+    save(settings.artifacts_dir / "keys-login" / version, model, feature_names=KEY_FEATURE_NAMES, schema=KEY_SCHEMA)
+    print(f"\nActivated login keyboard model {version} ({NAMES[chosen]}; {reason}); report {out}")
 
 
 if __name__ == "__main__":

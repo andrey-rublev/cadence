@@ -33,7 +33,8 @@ class UserSession(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    kind: Mapped[str] = mapped_column(String(12))  # collect | app
+    # collect | app | site (a partner sign-in, recorded so verified evidence from it can be learned)
+    kind: Mapped[str] = mapped_column(String(12))
     participant_id: Mapped[int | None] = mapped_column(ForeignKey("participants.id"))
     account_id: Mapped[int | None]
     label: Mapped[str | None] = mapped_column(String(4))  # collection session A, B, C...
@@ -74,7 +75,89 @@ class Account(Base):
     # Consent to capture pointer movement; null until given. Withdrawn by deleting the profile.
     consent_at: Mapped[float | None]
     keep_raw: Mapped[bool] = mapped_column(default=False)  # raw trajectories kept for debugging
+    # Set when the Cadence setup (click test, typing test, repeat sign-ins) is finished. Until
+    # then everything recorded on the Cadence site builds the profile; afterwards only
+    # verified checks and trusted sessions add to it.
+    setup_completed_at: Mapped[float | None]
     created_at: Mapped[float] = mapped_column(default=now)
+
+
+class Site(Base):
+    """A third-party site that uses Cadence as a second factor."""
+
+    __tablename__ = "sites"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(64))
+    site_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # public, used in the browser
+    secret_hash: Mapped[str] = mapped_column(String(64))  # SHA-256 of the server-to-server secret
+    origins_json: Mapped[str]  # browser origins allowed to send evidence
+    redirect_uris_json: Mapped[str]  # where linking may return to
+    created_at: Mapped[float] = mapped_column(default=now)
+
+
+class SiteLink(Base):
+    """A person's consent for one site to check them with Cadence. The site only ever sees `subject`."""
+
+    __tablename__ = "site_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
+    subject: Mapped[str] = mapped_column(String(43), unique=True, index=True)  # opaque, per site
+    created_at: Mapped[float] = mapped_column(default=now)
+    revoked_at: Mapped[float | None]
+
+
+class LinkCode(Base):
+    """One-time code handed back to a site after the person approves linking (OAuth-style)."""
+
+    __tablename__ = "link_codes"
+
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    link_id: Mapped[int] = mapped_column(ForeignKey("site_links.id"))
+    expires_at: Mapped[float]
+    used_at: Mapped[float | None]
+
+
+class EvidenceToken(Base):
+    """Behaviour sent straight from the person's browser on a partner page. The partner only
+    holds the opaque token; it never sees the timing data. Single use, short-lived."""
+
+    __tablename__ = "evidence_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    # [{"modality", "feature_schema", "values", "keys"|"strokes"}] feature vectors, no raw events
+    windows_json: Mapped[str]
+    keys: Mapped[int]
+    strokes: Mapped[int]
+    digest: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[float] = mapped_column(default=now)
+    expires_at: Mapped[float]
+    used_at: Mapped[float | None]
+
+
+class SiteCheck(Base):
+    """One check a site asked for (a sign-in or a sensitive action) and how it ended."""
+
+    __tablename__ = "site_checks"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
+    action: Mapped[str] = mapped_column(String(40))
+    decision_json: Mapped[str]
+    windows_json: Mapped[str]  # the evidence, kept until the check resolves so it can be learned
+    # behavior | test (a personalised step-up test) | fallback, or null while unresolved
+    resolved_by: Mapped[str | None] = mapped_column(String(12))
+    learned: Mapped[bool] = mapped_column(default=False)
+    stepup_code_hash: Mapped[str | None] = mapped_column(String(64))
+    stepup_attempts: Mapped[int] = mapped_column(default=0)
+    stepup_tests: Mapped[int] = mapped_column(default=0)  # personalised tests taken instead of the code
+    created_at: Mapped[float] = mapped_column(default=now)
+    expires_at: Mapped[float]
+    resolved_at: Mapped[float | None]
 
 
 class TrustCode(Base):

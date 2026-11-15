@@ -20,6 +20,9 @@ from ..core.security import (
 )
 from ..passive import passive_profile
 from ..product import CurrentAccount, active_model, is_trusted, issue_grant, profile_status
+from ..setup import learning_open, record_sign_in, setup_status
+from .passive import Activity, check_activity
+from .sites import forget_account
 
 router = APIRouter(prefix="/api", tags=["account"], dependencies=[Depends(require_client_header)])
 
@@ -30,6 +33,8 @@ MAX_CODE_ATTEMPTS = 5
 class Credentials(BaseModel):
     username: str = Field(max_length=64)
     password: str = Field(min_length=8, max_length=200)
+    # Typing and clicks on the sign-in form (zones only; the password field is timing only).
+    activity: Activity | None = None
 
 
 class ConsentBody(BaseModel):
@@ -51,6 +56,8 @@ def _me(db: Db, account: Account, session) -> dict:
         "trusted": is_trusted(session),
         "profile": profile_status(db, account, session),
         "passive": passive_profile(db, account.id, session),
+        "setup": setup_status(db, account),
+        "learning": learning_open(account, session),
         "model": None if model is None else {"version": model.version, "source": model.source},
         "retention_days": settings.retention_days,
     }
@@ -79,6 +86,10 @@ def login(body: Credentials, response: Response, db: Db) -> dict:
     if account is None or not verify_password(body.password, account.password_hash):
         raise HTTPException(401, "invalid_credentials")
     session = open_session(db, response, kind="app", account_id=account.id)
+    db.flush()
+    if body.activity is not None:
+        check_activity(body.activity)
+        record_sign_in(db, account, session, body.activity.model_dump())
     db.commit()
     return _me(db, account, session)
 
@@ -115,7 +126,9 @@ def delete_profile(account: CurrentAccount, session: CurrentSession, db: Db) -> 
     db.execute(delete(Sample).where(Sample.account_id == account.id))
     db.execute(delete(PassiveWindow).where(PassiveWindow.account_id == account.id))
     db.execute(delete(Verification).where(Verification.account_id == account.id))
+    forget_account(db, account.id)
     account.consent_at = None
+    account.setup_completed_at = None
     account.keep_raw = False
     db.commit()
     return _me(db, account, session)

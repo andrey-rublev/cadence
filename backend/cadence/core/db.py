@@ -36,6 +36,10 @@ def migrate(bind: Engine) -> None:
             conn.exec_driver_sql("ALTER TABLE participants RENAME COLUMN code TO username")
             conn.exec_driver_sql("UPDATE participants SET username = lower(username)")
 
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(accounts)")}
+        if columns and "setup_completed_at" not in columns:
+            conn.exec_driver_sql("ALTER TABLE accounts ADD COLUMN setup_completed_at FLOAT")
+
         # passive_windows gained participant_id and a nullable account_id. SQLite cannot alter
         # a column's nullability, so the old table is set aside and copied over after create_all.
         columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(passive_windows)")}

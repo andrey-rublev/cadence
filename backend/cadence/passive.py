@@ -1,9 +1,14 @@
 """Passive verification: no challenge, no game.
 
-While a consenting user works in the app, the SDK sends windows of ordinary pointer
-movement (12 strokes) and key timing (50 presses). During a trusted session (just after
-the demo authenticator) windows build the enrollment profile; otherwise they are evidence
-for the current session. A protected action is decided from recent evidence:
+The browser sends ordinary pointer movement and key timing. It arrives two ways:
+
+- on the Cadence site, in windows of 12 clicks or 50 keys (`/api/passive`). During setup or a
+  trusted session they build the profile; otherwise they are evidence for that sign-in;
+- from a partner site, as whatever the person happened to do before signing in or before a
+  sensitive action (`/v1/evidence`), with no minimum. A sign-in usually gives 15-45 keys,
+  which the login model scores; longer stretches go to the 50-key model.
+
+A decision combines the inputs that could be scored:
 
 - each modality with a model and a sufficient profile is scored separately (mean of its
   latest windows against its own thresholds);
@@ -15,6 +20,7 @@ The client controls what it sends, so passive evidence can be scripted by an att
 controls the browser. It is a risk signal; the trusted fallback is always available.
 """
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
@@ -24,8 +30,11 @@ from sqlalchemy.orm import Session
 
 from .core.config import settings
 from .core.models import PassiveWindow, UserSession, now
-from .features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA
-from .features.strokes import K_FEATURE_NAMES, K_SCHEMA
+from .features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA, MODIFIER, presses_from_events
+from .features.keys import window_vector as key_vector
+from .features.keys import windows as key_windows
+from .features.strokes import K_FEATURE_NAMES, K_SCHEMA, strokes
+from .features.strokes import window_vector as stroke_vector
 from .policy import CONSISTENT, INCONSISTENT, INSUFFICIENT, UNCERTAIN
 from .product import is_trusted
 from .verifier.artifact import Model, load_active
@@ -34,11 +43,23 @@ MODALITIES = {
     "pointer": {"names": K_FEATURE_NAMES, "schema": K_SCHEMA},
     "keys": {"names": KEY_FEATURE_NAMES, "schema": KEY_SCHEMA},
 }
+KEY_WINDOW = 50
+STROKE_WINDOW = 12
+MIN_STROKES = 8
 
 
 def passive_model(modality: str) -> Model | None:
     spec = MODALITIES[modality]
     return load_active(settings.artifacts_dir / modality, spec["names"], spec["schema"])
+
+
+def login_model() -> Model | None:
+    """The keyboard model for sign-in length typing (15-45 keys, password part hidden)."""
+    return load_active(settings.artifacts_dir / "keys-login", KEY_FEATURE_NAMES, KEY_SCHEMA)
+
+
+def windows_needed(modality: str) -> int:
+    return settings.passive_min_windows if modality == "keys" else settings.setup_pointer_windows
 
 
 def _vectors(db: Session, account_id: int, modality: str, purpose: str, **where) -> list[tuple[np.ndarray, int, float]]:
@@ -56,30 +77,92 @@ def _vectors(db: Session, account_id: int, modality: str, purpose: str, **where)
     return [(np.array(json.loads(v), dtype=float), s, t) for v, s, t in rows]
 
 
-def passive_profile(db: Session, account_id: int, session: UserSession) -> dict:
-    """Per modality: enrollment windows and sign-ins so far, and evidence in this session."""
-    out = {}
-    for modality in MODALITIES:
-        enrolled = _vectors(db, account_id, modality, "enroll")
-        sessions = len({s for _, s, _ in enrolled})
-        evidence = db.scalar(
-            select(func.count()).where(
-                PassiveWindow.session_id == session.id,
-                PassiveWindow.modality == modality,
-                PassiveWindow.purpose == "evidence",
-                PassiveWindow.captured_at >= now() - settings.passive_evidence_ttl_s,
+def sign_ins(db: Session, account_id: int) -> int:
+    """Separate sign-ins that contributed to the profile (full windows or sign-in typing)."""
+    return int(
+        db.scalar(
+            select(func.count(func.distinct(PassiveWindow.session_id))).where(
+                PassiveWindow.account_id == account_id, PassiveWindow.purpose.in_(("enroll", "login"))
             )
         )
+        or 0
+    )
+
+
+def _sufficient(windows: int, signed_in: int, modality: str) -> bool:
+    return windows >= windows_needed(modality) and signed_in >= settings.passive_min_sessions
+
+
+def passive_profile(db: Session, account_id: int, session: UserSession | None = None) -> dict:
+    """Per modality: profile windows and sign-ins so far, and evidence in this session."""
+    signed_in = sign_ins(db, account_id)
+    out = {}
+    for modality in MODALITIES:
+        enrolled = len(_vectors(db, account_id, modality, "enroll"))
+        evidence = 0
+        if session is not None:
+            evidence = db.scalar(
+                select(func.count()).where(
+                    PassiveWindow.session_id == session.id,
+                    PassiveWindow.modality == modality,
+                    PassiveWindow.purpose == "evidence",
+                    PassiveWindow.captured_at >= now() - settings.passive_evidence_ttl_s,
+                )
+            )
         out[modality] = {
-            "windows": len(enrolled),
-            "sessions": sessions,
-            "windows_needed": settings.passive_min_windows,
+            "windows": enrolled,
+            "sessions": signed_in,
+            "windows_needed": windows_needed(modality),
             "sessions_needed": settings.passive_min_sessions,
-            "sufficient": len(enrolled) >= settings.passive_min_windows and sessions >= settings.passive_min_sessions,
+            "sufficient": _sufficient(enrolled, signed_in, modality),
             "recent_evidence": int(evidence or 0),
             "model": None if (m := passive_model(modality)) is None else {"version": m.version, "source": m.source},
         }
     return out
+
+
+# ---------------------------------------------------------------- evidence from raw events
+
+
+def evidence_windows(key_events: list, pointer_events: list) -> list[dict]:
+    """Feature windows from a stretch of activity of any length. Short typing becomes one
+    login-length window; anything under the minimums is simply not used."""
+    out: list[dict] = []
+    presses = presses_from_events(key_events) if key_events else []
+    typed = sum(z != MODIFIER for _, _, z in presses)
+    if typed >= settings.long_window_keys:
+        full = key_windows(presses, KEY_WINDOW)
+        used = sum(len(w) for w in full)
+        rest = presses[used:]
+        if sum(z != MODIFIER for _, _, z in rest) >= settings.long_window_keys:
+            full.append(rest)
+        for w in full:
+            keys = sum(z != MODIFIER for _, _, z in w)
+            out.append({"modality": "keys", "use": "standard", "keys": keys, "values": _clean(key_vector(w))})
+    elif typed >= settings.min_login_keys:
+        out.append({"modality": "keys", "use": "login", "keys": typed, "values": _clean(key_vector(presses))})
+
+    found = strokes(pointer_events) if pointer_events else []
+    groups = [found[i : i + STROKE_WINDOW] for i in range(0, len(found), STROKE_WINDOW)]
+    for group in groups:
+        if len(group) >= MIN_STROKES:
+            out.append({"modality": "pointer", "use": "standard", "strokes": len(group), "values": _clean(stroke_vector(group))})
+    return out
+
+
+def _clean(vector: np.ndarray) -> list[float | None]:
+    return [None if not np.isfinite(v) else float(v) for v in vector.tolist()]
+
+
+def _array(values: list[float | None]) -> np.ndarray:
+    return np.array([np.nan if v is None else v for v in values], dtype=float)
+
+
+def window_digest(window: dict, salt: str) -> str:
+    return hashlib.sha256(f"{salt}:{json.dumps(window, sort_keys=True)}".encode()).hexdigest()
+
+
+# ---------------------------------------------------------------- decisions
 
 
 @dataclass
@@ -93,6 +176,8 @@ class Part:
     windows: int = 0
     enrollment_windows: int = 0
     model_version: str | None = None
+    use: str = "standard"  # standard (50-key / 12-click windows) | login (sign-in length typing)
+    amount: int = 0  # keys or clicks the scored evidence contained
 
 
 @dataclass
@@ -105,27 +190,25 @@ class PassiveDecision:
         return asdict(self)
 
 
-def _decide_part(db: Session, account_id: int, session: UserSession, modality: str) -> Part:
-    part = Part(modality, INSUFFICIENT)
-    model = passive_model(modality)
+def _score_part(
+    db: Session, account_id: int, modality: str, probes: list[np.ndarray], model: Model | None, use: str, amount: int
+) -> Part:
+    part = Part(modality, INSUFFICIENT, use=use, amount=amount)
     if model is None:
         part.reason = "model_missing"
         return part
     part.model_version, part.reject_at, part.accept_at = model.version, model.reject_at, model.accept_at
     enrolled = _vectors(db, account_id, modality, "enroll")
     part.enrollment_windows = len(enrolled)
-    if not (len(enrolled) >= settings.passive_min_windows and len({s for _, s, _ in enrolled}) >= settings.passive_min_sessions):
+    if not _sufficient(len(enrolled), sign_ins(db, account_id), modality):
         part.reason = "not_enrolled"
         return part
-    evidence = _vectors(
-        db, account_id, modality, "evidence", session_id=session.id, since=now() - settings.passive_evidence_ttl_s
-    )[-settings.passive_evidence_windows :]
-    part.windows = len(evidence)
-    if not evidence:
+    part.windows = len(probes)
+    if not probes:
         part.reason = "no_interaction_yet"
         return part
     enrollment = np.array([v for v, _, _ in enrolled])
-    scores = model.verifier.score_many(enrollment, np.array([v for v, _, _ in evidence]))
+    scores = model.verifier.score_many(enrollment, np.array(probes))
     scores = scores[np.isfinite(scores)]
     if not scores.size:
         part.reason = "window_not_measurable"
@@ -135,12 +218,7 @@ def _decide_part(db: Session, account_id: int, session: UserSession, modality: s
     return part
 
 
-def decide_passive(db: Session, account_id: int, session: UserSession) -> PassiveDecision:
-    parts = [_decide_part(db, account_id, session, modality) for modality in MODALITIES]
-    if is_trusted(session):
-        # A learning sign-in: its windows go into the profile, so there is no evidence to
-        # compare, and comparing a sitting with itself would flatter the score anyway.
-        return PassiveDecision(INSUFFICIENT, reason="learning_session", parts=parts)
+def _combine(parts: list[Part]) -> PassiveDecision:
     outcomes = {p.outcome for p in parts}
     if INCONSISTENT in outcomes:
         return PassiveDecision(INCONSISTENT, parts=parts)
@@ -154,3 +232,80 @@ def decide_passive(db: Session, account_id: int, session: UserSession) -> Passiv
         if reason in reasons:
             return PassiveDecision(INSUFFICIENT, reason=reason, parts=parts)
     return PassiveDecision(INSUFFICIENT, reason="no_evidence", parts=parts)
+
+
+def recommend_test(db: Session, account_id: int) -> dict:
+    """Which short test is most likely to settle an unsure check for this particular person.
+
+    For each input with a model and a profile, every profile sample is scored against the
+    rest of the profile (leave one out). Where this person's own samples sit far above the
+    accept threshold, a fresh sample of that input is likely to clear them; where they sit near
+    or below it, that input is a poor way for this person to prove who they are. The margin is
+    in units of the gap between the two thresholds, so typing and clicking compare fairly.
+    """
+    options = []
+    for modality in MODALITIES:
+        model = passive_model(modality)
+        enrolled = [v for v, _, _ in _vectors(db, account_id, modality, "enroll")]
+        if model is None or len(enrolled) < 3:
+            continue
+        matrix = np.array(enrolled)
+        own = []
+        for i in range(len(matrix)):
+            rest = np.delete(matrix, i, axis=0)
+            score = model.verifier.score_many(rest, matrix[i : i + 1])[0]
+            if np.isfinite(score):
+                own.append(float(score))
+        if len(own) < 3:
+            continue
+        spread = max(model.accept_at - model.reject_at, 1e-6)
+        median = float(np.median(own))
+        cleared = float(np.mean([s > model.accept_at for s in own]))
+        options.append(
+            {
+                "modality": modality,
+                "margin": (median - model.accept_at) / spread,
+                "own_samples_clear": cleared,  # share of this person's samples that would pass on their own
+                "samples": len(own),
+            }
+        )
+    options.sort(key=lambda o: (o["margin"], o["modality"] == "keys"), reverse=True)
+    return {"recommended": options[0]["modality"] if options else None, "options": options}
+
+
+def decide_passive(db: Session, account_id: int, session: UserSession) -> PassiveDecision:
+    """A check on the Cadence site itself, from this sign-in's stored evidence windows."""
+    parts = []
+    for modality in MODALITIES:
+        evidence = _vectors(
+            db, account_id, modality, "evidence", session_id=session.id, since=now() - settings.passive_evidence_ttl_s
+        )[-settings.passive_evidence_windows :]
+        parts.append(_score_part(db, account_id, modality, [v for v, _, _ in evidence], passive_model(modality), "standard", 0))
+    if is_trusted(session):
+        # A learning sign-in: its windows go into the profile, so there is no evidence to
+        # compare, and comparing a sitting with itself would flatter the score anyway.
+        return PassiveDecision(INSUFFICIENT, reason="learning_session", parts=parts)
+    return _combine(parts)
+
+
+def decide_evidence(db: Session, account_id: int, windows: list[dict]) -> PassiveDecision:
+    """A check for a partner site, from evidence of any length sent by the person's browser."""
+    latest = settings.passive_evidence_windows
+    long_keys = [w for w in windows if w["modality"] == "keys" and w["use"] == "standard"][-latest:]
+    short_keys = [w for w in windows if w["modality"] == "keys" and w["use"] == "login"]
+    pointer = [w for w in windows if w["modality"] == "pointer"][-latest:]
+    if long_keys or not short_keys:
+        keys = _score_part(
+            db, account_id, "keys", [_array(w["values"]) for w in long_keys], passive_model("keys"), "standard",
+            sum(w["keys"] for w in long_keys),
+        )  # fmt: skip
+    else:
+        keys = _score_part(
+            db, account_id, "keys", [_array(w["values"]) for w in short_keys], login_model(), "login",
+            sum(w["keys"] for w in short_keys),
+        )  # fmt: skip
+    clicks = _score_part(
+        db, account_id, "pointer", [_array(w["values"]) for w in pointer], passive_model("pointer"), "standard",
+        sum(w["strokes"] for w in pointer),
+    )  # fmt: skip
+    return _combine([clicks, keys])
