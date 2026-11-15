@@ -13,6 +13,7 @@ The score is the classifier's log-odds margin. It is a similarity, not a probabi
 identity, and is never shown as one.
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -39,10 +40,15 @@ class Pairwise:
     scaler: Baseline
     estimator: Any
     kind: Kind
+    # Features never measured in training carry nothing and break tree binning, so they are dropped.
+    used: np.ndarray | None = None
 
     def _gaps(self, enrollment: np.ndarray, probes: np.ndarray) -> np.ndarray:
-        template = np.nanmedian(self.scaler._z(enrollment), axis=0)
-        return np.abs(self.scaler._z(probes) - template)
+        with np.errstate(all="ignore"), warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN columns are expected, handled below
+            template = np.nanmedian(self.scaler._z(enrollment), axis=0)
+            gaps = np.abs(self.scaler._z(probes) - template)
+        return gaps if self.used is None else gaps[:, self.used]
 
     def score(self, enrollment: np.ndarray, probe: np.ndarray) -> float:
         return float(self.score_many(enrollment, np.atleast_2d(probe))[0])
@@ -91,7 +97,9 @@ def fit_pairwise(rounds: list[Round], kind: Kind, seed: int = 0) -> Pairwise:
     y = np.array(labels)
     if not (y == 1).any() or not (y == 0).any():
         raise NotTrainable("need at least one training participant with two sessions, and two participants")
+    x = np.vstack(features)
+    model.used = ~np.all(np.isnan(x), axis=0)
     # One thread: at this size, starting worker threads costs more than the work itself.
     with threadpool_limits(1):
-        model.estimator = _estimator(kind, seed).fit(np.vstack(features), y)
+        model.estimator = _estimator(kind, seed).fit(x[:, model.used], y)
     return model

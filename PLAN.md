@@ -320,6 +320,18 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 | M2 pairwise boosting | 0.85 (0.72–0.94) | 0.93 (0.81–0.99) | 25% (14–36%) |
 
 With B0 and the product policy (up to three rounds), 6% (1–17%) of impostor checks were let through, 44% (19–71%) of owner checks were let through, and 50% (25–75%) of owners ended at the fallback. M2's AUC gain over B0 is +0.05 (−0.02 to +0.14), not enough to replace the baseline yet. Every owner attempt crossed laptops. Impostors on the owner's own laptop are harder to catch (AUC 0.76) than impostors on another laptop (0.85), so part of the separation comes from the device. Ranges are 95% participant-bootstrap intervals; with 8 people they are wide, and in line with the 10–20% error rates published for short tasks (section 2.2).
+
+#### Model questions, measured (`scripts/experiments.py`, Sat 6:50 PM, same 10 people)
+All held-out, one probe round, AUC with 95% ranges. Report: `artifacts/reports/experiments.json`.
+
+| Question | Result | What it means |
+|---|---|---|
+| Does training on more people help a new person? | B0 flat: 0.78 → 0.79 from 2 to 8 training people. M2 rises: 0.69 → 0.77 → 0.81 → 0.83 | B0 only learns feature spreads, so more people barely matter. The learned model is still improving at 8 people, so recruiting is what makes M2 worth switching to. 10 people cannot say where it levels off; SapiMouse (120 people) can |
+| How much enrollment is enough? | 1 round (~18 s) 0.75–0.78; 3 rounds 0.75–0.79; 6 rounds 0.80–0.85 | More enrollment helps a little; one session of 6 rounds is the best measured |
+| Does a second session matter? | Probe from the same sitting: B0 0.91 (EER 13%). Probe from the second session: B0 0.75 (EER 32%) | Testing inside one sitting overstates accuracy badly. Every second session here was also on another laptop, so this mixes "another day" with "another device" |
+| Can a few seconds of movement work (passive login)? | 2 clicks (~1.5 s) 0.70; 4 clicks (~3 s) 0.67; 8 clicks (~6 s) 0.78; clicks and drags (~11 s) 0.83; full round (~18 s) 0.80 | The movement on a login page alone is weak (EER ~37%). It can only be a prior that accumulates across logins and in-app use, with the challenge as step-up |
+
+Not measurable yet: whether enrolling on two sessions beats one (needs a third session to probe with), and same-laptop genuine accuracy. **Ask about 5 volunteers for a session C on either laptop**; it answers both.
 - [x] A — Replay, expiry, cross-session, grant-reuse and rate-limit tests (36 backend tests)
 - [ ] A — Accessibility pass and responsive review in a real browser
 - [ ] A+B — README with setup commands and demo steps
@@ -379,6 +391,7 @@ then start the API with `CADENCE_ALLOW_SYNTHETIC_MODEL=1`. The app shows a "Sand
 | `backend/cadence/policy.py` | The four outcomes and how a score becomes one |
 | `backend/cadence/product.py` | Enrollment profile, trust window, action grants |
 | `backend/scripts/train.py` | Train, evaluate and activate a model |
+| `backend/scripts/experiments.py` | Learning curve, enrollment size, second session, short-interaction experiments |
 | `backend/cadence/collect.py` | Participant codes, checksum, split assignment |
 | `backend/cadence/synthetic.py` | Synthetic pointer player for tests. Never evidence about people |
 | `packages/sdk/src/` | Capture SDK. `geometry.ts` must stay in step with `spec.py` and `replay.py` |

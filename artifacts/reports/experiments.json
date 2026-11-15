@@ -1,0 +1,512 @@
+{
+  "people": 10,
+  "with_two_sessions": 8,
+  "rounds": 107,
+  "note": "Held-out volunteers only; AUC ranges are 95% participant-bootstrap intervals.",
+  "learning_curve": [
+    {
+      "auc": {
+        "value": 0.782,
+        "low": 0.6177,
+        "high": 0.9001
+      },
+      "eer": {
+        "value": 0.2908,
+        "low": 0.1716,
+        "high": 0.4084
+      },
+      "genuine_attempts": 141,
+      "impostor_attempts": 2283,
+      "model": "b0",
+      "training_people": 2
+    },
+    {
+      "auc": {
+        "value": 0.6888,
+        "low": 0.6003,
+        "high": 0.7628
+      },
+      "eer": {
+        "value": 0.3476,
+        "low": 0.2684,
+        "high": 0.4177
+      },
+      "genuine_attempts": 141,
+      "impostor_attempts": 2177,
+      "model": "m2",
+      "training_people": 2
+    },
+    {
+      "auc": {
+        "value": 0.7904,
+        "low": 0.6316,
+        "high": 0.9158
+      },
+      "eer": {
+        "value": 0.2635,
+        "low": 0.1484,
+        "high": 0.3915
+      },
+      "genuine_attempts": 141,
+      "impostor_attempts": 2283,
+      "model": "b0",
+      "training_people": 4
+    },
+    {
+      "auc": {
+        "value": 0.7743,
+        "low": 0.6675,
+        "high": 0.8555
+      },
+      "eer": {
+        "value": 0.2822,
+        "low": 0.2159,
+        "high": 0.3829
+      },
+      "genuine_attempts": 141,
+      "impostor_attempts": 2283,
+      "model": "m2",
+      "training_people": 4
+    },
+    {
+      "auc": {
+        "value": 0.7914,
+        "low": 0.6367,
+        "high": 0.9147
+      },
+      "eer": {
+        "value": 0.2679,
+        "low": 0.1437,
+        "high": 0.3818
+      },
+      "genuine_attempts": 141,
+      "impostor_attempts": 2283,
+      "model": "b0",
+      "training_people": 6
+    },
+    {
+      "auc": {
+        "value": 0.814,
+        "low": 0.6825,
+        "high": 0.9091
+      },
+      "eer": {
+        "value": 0.2415,
+        "low": 0.163,
+        "high": 0.353
+      },
+      "genuine_attempts": 141,
+      "impostor_attempts": 2283,
+      "model": "m2",
+      "training_people": 6
+    },
+    {
+      "auc": {
+        "value": 0.7941,
+        "low": 0.6396,
+        "high": 0.9163
+      },
+      "eer": {
+        "value": 0.275,
+        "low": 0.13,
+        "high": 0.3899
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "training_people": 8
+    },
+    {
+      "auc": {
+        "value": 0.8315,
+        "low": 0.698,
+        "high": 0.9349
+      },
+      "eer": {
+        "value": 0.2366,
+        "low": 0.1508,
+        "high": 0.3606
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "training_people": 8
+    }
+  ],
+  "enrollment_size": [
+    {
+      "auc": {
+        "value": 0.7549,
+        "low": 0.5797,
+        "high": 0.8959
+      },
+      "eer": {
+        "value": 0.2981,
+        "low": 0.1661,
+        "high": 0.4575
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "enrollment_rounds": 1,
+      "enrollment_seconds": 18
+    },
+    {
+      "auc": {
+        "value": 0.7848,
+        "low": 0.6239,
+        "high": 0.898
+      },
+      "eer": {
+        "value": 0.2763,
+        "low": 0.1645,
+        "high": 0.437
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "enrollment_rounds": 1,
+      "enrollment_seconds": 18
+    },
+    {
+      "auc": {
+        "value": 0.745,
+        "low": 0.59,
+        "high": 0.8846
+      },
+      "eer": {
+        "value": 0.3192,
+        "low": 0.1865,
+        "high": 0.4476
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "enrollment_rounds": 2,
+      "enrollment_seconds": 36
+    },
+    {
+      "auc": {
+        "value": 0.778,
+        "low": 0.6126,
+        "high": 0.9096
+      },
+      "eer": {
+        "value": 0.3166,
+        "low": 0.1658,
+        "high": 0.4556
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "enrollment_rounds": 2,
+      "enrollment_seconds": 36
+    },
+    {
+      "auc": {
+        "value": 0.7513,
+        "low": 0.6,
+        "high": 0.8823
+      },
+      "eer": {
+        "value": 0.3192,
+        "low": 0.1845,
+        "high": 0.4437
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "enrollment_rounds": 3,
+      "enrollment_seconds": 53
+    },
+    {
+      "auc": {
+        "value": 0.7949,
+        "low": 0.6089,
+        "high": 0.9311
+      },
+      "eer": {
+        "value": 0.2763,
+        "low": 0.1375,
+        "high": 0.4283
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "enrollment_rounds": 3,
+      "enrollment_seconds": 53
+    },
+    {
+      "auc": {
+        "value": 0.8018,
+        "low": 0.6532,
+        "high": 0.9215
+      },
+      "eer": {
+        "value": 0.2551,
+        "low": 0.1305,
+        "high": 0.3659
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "enrollment_rounds": 6,
+      "enrollment_seconds": 107
+    },
+    {
+      "auc": {
+        "value": 0.8541,
+        "low": 0.7287,
+        "high": 0.9455
+      },
+      "eer": {
+        "value": 0.2532,
+        "low": 0.1365,
+        "high": 0.357
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "enrollment_rounds": 6,
+      "enrollment_seconds": 107
+    }
+  ],
+  "second_session": [
+    {
+      "auc": {
+        "value": 0.9087,
+        "low": 0.8139,
+        "high": 0.975
+      },
+      "eer": {
+        "value": 0.1275,
+        "low": 0.0597,
+        "high": 0.2346
+      },
+      "genuine_attempts": 24,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "probe": "same sitting (rounds 4-6)"
+    },
+    {
+      "auc": {
+        "value": 0.8365,
+        "low": 0.6192,
+        "high": 0.9662
+      },
+      "eer": {
+        "value": 0.2439,
+        "low": 0.0907,
+        "high": 0.4126
+      },
+      "genuine_attempts": 24,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "probe": "same sitting (rounds 4-6)"
+    },
+    {
+      "auc": {
+        "value": 0.7513,
+        "low": 0.6,
+        "high": 0.8823
+      },
+      "eer": {
+        "value": 0.3192,
+        "low": 0.1845,
+        "high": 0.4437
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "probe": "second session, other laptop"
+    },
+    {
+      "auc": {
+        "value": 0.7949,
+        "low": 0.6089,
+        "high": 0.9311
+      },
+      "eer": {
+        "value": 0.2763,
+        "low": 0.1375,
+        "high": 0.4283
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "probe": "second session, other laptop"
+    }
+  ],
+  "short_interaction": [
+    {
+      "auc": {
+        "value": 0.6978,
+        "low": 0.5235,
+        "high": 0.8559
+      },
+      "eer": {
+        "value": 0.3668,
+        "low": 0.2206,
+        "high": 0.5012
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "variant": "first 2 clicks",
+      "seconds": 1.5
+    },
+    {
+      "auc": {
+        "value": 0.6756,
+        "low": 0.55,
+        "high": 0.7817
+      },
+      "eer": {
+        "value": 0.3827,
+        "low": 0.292,
+        "high": 0.4797
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "variant": "first 2 clicks",
+      "seconds": 1.5
+    },
+    {
+      "auc": {
+        "value": 0.6743,
+        "low": 0.5447,
+        "high": 0.8238
+      },
+      "eer": {
+        "value": 0.3827,
+        "low": 0.2306,
+        "high": 0.5095
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "variant": "first 4 clicks",
+      "seconds": 3.0
+    },
+    {
+      "auc": {
+        "value": 0.6337,
+        "low": 0.428,
+        "high": 0.8214
+      },
+      "eer": {
+        "value": 0.3833,
+        "low": 0.2501,
+        "high": 0.5533
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "variant": "first 4 clicks",
+      "seconds": 3.0
+    },
+    {
+      "auc": {
+        "value": 0.7826,
+        "low": 0.6032,
+        "high": 0.9144
+      },
+      "eer": {
+        "value": 0.2981,
+        "low": 0.1637,
+        "high": 0.4254
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "variant": "all 8 clicks",
+      "seconds": 6.4
+    },
+    {
+      "auc": {
+        "value": 0.6914,
+        "low": 0.5032,
+        "high": 0.8598
+      },
+      "eer": {
+        "value": 0.3404,
+        "low": 0.1981,
+        "high": 0.5292
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "variant": "all 8 clicks",
+      "seconds": 6.4
+    },
+    {
+      "auc": {
+        "value": 0.8296,
+        "low": 0.6812,
+        "high": 0.9426
+      },
+      "eer": {
+        "value": 0.234,
+        "low": 0.1179,
+        "high": 0.3824
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "variant": "clicks and drags",
+      "seconds": 11.3
+    },
+    {
+      "auc": {
+        "value": 0.8108,
+        "low": 0.658,
+        "high": 0.9254
+      },
+      "eer": {
+        "value": 0.2717,
+        "low": 0.1417,
+        "high": 0.4098
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "variant": "clicks and drags",
+      "seconds": 11.3
+    },
+    {
+      "auc": {
+        "value": 0.8018,
+        "low": 0.6532,
+        "high": 0.9215
+      },
+      "eer": {
+        "value": 0.2551,
+        "low": 0.1305,
+        "high": 0.3659
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "b0",
+      "variant": "full round",
+      "seconds": 17.8
+    },
+    {
+      "auc": {
+        "value": 0.8541,
+        "low": 0.7287,
+        "high": 0.9455
+      },
+      "eer": {
+        "value": 0.2532,
+        "low": 0.1365,
+        "high": 0.357
+      },
+      "genuine_attempts": 47,
+      "impostor_attempts": 761,
+      "model": "m2",
+      "variant": "full round",
+      "seconds": 17.8
+    }
+  ]
+}
