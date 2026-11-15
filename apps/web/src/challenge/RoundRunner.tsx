@@ -5,7 +5,7 @@ import { ChallengeSheet } from './ChallengeSheet'
 
 function instruction(layout: Layout, view: ChallengeView | null): string {
   const task = view && layout.tasks[view.taskIndex]
-  if (!task) return 'Saving this round…'
+  if (!task) return 'Saving this round'
   const before = layout.tasks.slice(0, view.taskIndex)
   if (task.kind === 'click') {
     if (view.taskIndex === 0) return 'Click the marked spot to break ground.'

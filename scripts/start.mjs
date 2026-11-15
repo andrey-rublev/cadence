@@ -46,7 +46,7 @@ const services = [
   {
     name: 'partner api',
     color: 33,
-    command: `uv run --project backend uvicorn partner_demo.main:app --port ${port['partner-api-port']}`,
+    command: `uv run --project backend uvicorn partner_demo.main:app --port ${port['partner-api-port']} --reload --reload-dir backend/partner_demo`,
   },
   { name: 'partner web', color: 32, command: `npm run dev -w @cadence/partner -- --port ${port['partner-web-port']} --strictPort` },
 ]

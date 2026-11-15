@@ -6,7 +6,14 @@ through the public site key (in the browser) and the site secret (here, on the s
 - sign-in: password first, then `POST /v1/checks` with the evidence token the browser got
   from Cadence. Released: signed in. Otherwise the person is sent to Cadence to verify,
   and comes back to `/cadence/return`, where this server reads the check again.
-- export: the same, with action `export_customers`.
+- export: the same, with action `export_customers`. An export is a request: which customers,
+  which fields, a name and a written reason, all kept in the export log. Building one takes
+  a fair amount of clicking and typing, which is what Cadence gets to look at. Once an export
+  has been verified, more exports in the same web session go through for a few minutes
+  without asking again (EXPORT_GRACE_S), unless the typing on the page clearly isn't the
+  account owner's.
+- deleting an account: a fresh `delete_account` check for a connected account, followed by
+  removal of the account, its sessions, and its export history.
 - linking: "Protect with Cadence" sends the person to Cadence /connect; the code that comes
   back is exchanged here for an opaque subject. Then the person types their Northwind sign-in
   a few times (`/api/cadence/practice`): the password is checked here, and Cadence receives
@@ -25,12 +32,12 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlencode
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Response
-from pydantic import BaseModel, Field
-from sqlalchemy import ForeignKey, String, create_engine, select
+from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy import ForeignKey, String, create_engine, delete, event, inspect, select, text, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from .data import CUSTOMERS
@@ -44,6 +51,10 @@ DB_PATH = Path(os.environ.get("NORTHWIND_DB_PATH", Path(__file__).resolve().pare
 COOKIE = "northwind_session"
 PENDING_COOKIE = "northwind_pending"
 SESSION_TTL_S = 8 * 3600
+PENDING_TTL_S = 900
+# After a verified export, further exports in the same web session need no new check for this
+# long. The window starts at the verification and is not stretched by the exports it lets through.
+EXPORT_GRACE_S = int(os.environ.get("NORTHWIND_EXPORT_GRACE_S", 5 * 60))
 
 
 # ---------------------------------------------------------------- storage
@@ -68,19 +79,38 @@ class WebSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     expires_at: Mapped[float]
     last_check_json: Mapped[str | None]  # the Cadence check that let this sign-in through
+    export_trusted_until: Mapped[float | None]  # exports need no new check until then
 
 
 class Pending(Base):
-    """A sign-in or export waiting for the person to verify with Cadence."""
+    """An action waiting for the person to verify with Cadence."""
 
     __tablename__ = "pending"
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    kind: Mapped[str] = mapped_column(String(12))  # sign_in | export
+    kind: Mapped[str] = mapped_column(String(12))  # sign_in | export | delete
     check_id: Mapped[str] = mapped_column(String(32))
     browser_hash: Mapped[str] = mapped_column(String(64))  # binds it to the browser that started it
     created_at: Mapped[float]
     done_at: Mapped[float | None]
+
+
+class ExportRequest(Base):
+    """One export someone asked for: what, why, and whether it was released. The export log."""
+
+    __tablename__ = "export_requests"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    reason: Mapped[str] = mapped_column(String(600))
+    audience: Mapped[str] = mapped_column(String(12))  # me | team | external
+    recipient: Mapped[str | None] = mapped_column(String(120))  # who, when it leaves Northwind
+    customer_ids_json: Mapped[str]
+    fields_json: Mapped[str]
+    created_at: Mapped[float]
+    pending_id: Mapped[str | None] = mapped_column(String(32), index=True)  # waiting for Cadence
+    released_at: Mapped[float | None]
+    released_by: Mapped[str | None] = mapped_column(String(12))  # behavior | test | fallback | recent | password
 
 
 class ConnectState(Base):
@@ -91,7 +121,18 @@ class ConnectState(Base):
 
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+
+
+@event.listens_for(engine, "connect")
+def enable_foreign_keys(connection, _record) -> None:
+    # Requests finishing after an account is deleted cannot recreate its dependent records.
+    connection.execute("PRAGMA foreign_keys=ON")
+
+
 Base.metadata.create_all(engine)
+with engine.begin() as conn:  # databases made before the export grace window existed
+    if "export_trusted_until" not in {c["name"] for c in inspect(conn).get_columns("web_sessions")}:
+        conn.execute(text("ALTER TABLE web_sessions ADD COLUMN export_trusted_until FLOAT"))
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 
@@ -185,7 +226,10 @@ def current(db: Db, token: Annotated[str | None, Cookie(alias=COOKIE)] = None) -
     web = db.get(WebSession, sha(token)) if token else None
     if web is None or web.expires_at < time.time():
         raise HTTPException(401, "not_signed_in")
-    return db.get(User, web.user_id), web
+    user = db.get(User, web.user_id)
+    if user is None:
+        raise HTTPException(401, "not_signed_in")
+    return user, web
 
 
 Current = Annotated[tuple[User, WebSession], Depends(current)]
@@ -199,19 +243,21 @@ def me_view(user: User, web: WebSession | None = None) -> dict:
     }
 
 
-def start_pending(db: Session, response: Response, user: User, kind: str, check: dict) -> dict:
+def start_pending(
+    db: Session, response: Response, user: User, kind: str, check: dict, *, binding: str = ""
+) -> dict:
     browser = secrets.token_urlsafe(24)
     pending = Pending(
         id=secrets.token_hex(16),
         user_id=user.id,
         kind=kind,
         check_id=check["check_id"],
-        browser_hash=sha(browser),
+        browser_hash=sha(browser + binding),
         created_at=time.time(),
     )
     db.add(pending)
     db.commit()
-    response.set_cookie(PENDING_COOKIE, browser, max_age=900, httponly=True, samesite="lax", path="/")
+    response.set_cookie(PENDING_COOKIE, browser, max_age=PENDING_TTL_S, httponly=True, samesite="lax", path="/")
     back = f"{WEB}/cadence/return?{urlencode({'pending': pending.id})}"
     return {
         "status": "verify",
@@ -221,18 +267,33 @@ def start_pending(db: Session, response: Response, user: User, kind: str, check:
     }
 
 
-def finish_pending(db: Session, pending_id: str, kind: str, browser: str | None) -> tuple[User, dict]:
+def verified_pending(
+    db: Session, pending_id: str, kind: str, browser: str | None, *, binding: str = ""
+) -> tuple[Pending, dict]:
     pending = db.get(Pending, pending_id)
-    if pending is None or pending.kind != kind or pending.done_at is not None:
+    if (
+        pending is None
+        or pending.kind != kind
+        or pending.done_at is not None
+        or pending.created_at + PENDING_TTL_S < time.time()
+    ):
         raise HTTPException(400, "pending_unknown")
-    if not browser or not hmac.compare_digest(pending.browser_hash, sha(browser)):
+    if not browser or not hmac.compare_digest(pending.browser_hash, sha(browser + binding)):
         raise HTTPException(403, "pending_other_browser")
     check = cadence("GET", f"/v1/checks/{pending.check_id}")
     if not check["resolved"]:
         raise HTTPException(403, "not_verified")
+    return pending, check
+
+
+def finish_pending(db: Session, pending_id: str, kind: str, browser: str | None) -> tuple[User, dict]:
+    pending, check = verified_pending(db, pending_id, kind, browser)
+    user = db.get(User, pending.user_id)
+    if user is None:
+        raise HTTPException(400, "pending_unknown")
     pending.done_at = time.time()
     db.commit()
-    return db.get(User, pending.user_id), check
+    return user, check
 
 
 # ---------------------------------------------------------------- routes
@@ -252,7 +313,9 @@ def register(body: Credentials, response: Response, db: Db) -> dict:
     email = body.email.strip().lower()
     if db.scalar(select(User.id).where(User.email == email)):
         raise HTTPException(409, "email_taken")
-    user = User(email=email, password_hash=hash_password(body.password))
+    # SQLite can reuse a deleted rowid. Give new accounts independent IDs so requests in
+    # flight for a deleted account can never attach to the next registration.
+    user = User(id=secrets.randbits(63), email=email, password_hash=hash_password(body.password))
     db.add(user)
     db.commit()
     open_session(db, response, user, None)
@@ -371,22 +434,194 @@ def customers(session: Current) -> dict:
     return {"fictional": True, "customers": CUSTOMERS}
 
 
+# What an export may contain, in file order. The contact fields are personal data.
+EXPORT_FIELDS = ("id", "company", "plan", "seats", "since", "contact", "email", "phone")
+CUSTOMER_IDS = {c["id"] for c in CUSTOMERS}
+
+
 class ExportBody(BaseModel):
     evidence: str | None = Field(default=None, max_length=64)
+    name: str = Field(min_length=3, max_length=80)
+    reason: str = Field(max_length=600)
+    audience: Literal["me", "team", "external"]
+    recipient: str | None = Field(default=None, max_length=120)
+    customer_ids: list[str] = Field(min_length=1, max_length=len(CUSTOMERS))
+    fields: list[str] = Field(min_length=1, max_length=len(EXPORT_FIELDS))
+    acknowledged: Literal[True]  # the data handling statement was ticked
+
+    @field_validator("name", "recipient")
+    @classmethod
+    def _trimmed(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("reason")
+    @classmethod
+    def _written_reason(cls, value: str) -> str:
+        reason = value.strip()
+        if not reason:
+            raise ValueError("reason_required")
+        return reason
+
+    @field_validator("customer_ids")
+    @classmethod
+    def _known_customers(cls, value: list[str]) -> list[str]:
+        if len(set(value)) != len(value) or not set(value) <= CUSTOMER_IDS:
+            raise ValueError("unknown_customer")
+        return value
+
+    @field_validator("fields")
+    @classmethod
+    def _known_fields(cls, value: list[str]) -> list[str]:
+        if len(set(value)) != len(value) or not set(value) <= set(EXPORT_FIELDS):
+            raise ValueError("unknown_field")
+        return [f for f in EXPORT_FIELDS if f in value]  # file order, whatever order they were ticked in
+
+    @model_validator(mode="after")
+    def _recipient_when_external(self) -> "ExportBody":
+        if self.audience == "external" and not self.recipient:
+            raise ValueError("recipient_required")
+        if self.audience != "external":
+            self.recipient = None
+        return self
+
+
+def trust_exports(db: Session, web: WebSession) -> None:
+    """A verified export: let more exports in this web session through for a while."""
+    web.export_trusted_until = time.time() + EXPORT_GRACE_S
+    db.commit()
+
+
+def export_trusted(web: WebSession) -> bool:
+    return web.export_trusted_until is not None and web.export_trusted_until > time.time()
+
+
+def export_view(request: ExportRequest) -> dict:
+    """A line of the export log."""
+    return {
+        "id": request.id,
+        "name": request.name,
+        "reason": request.reason,
+        "audience": request.audience,
+        "recipient": request.recipient,
+        "records": len(json.loads(request.customer_ids_json)),
+        "fields": json.loads(request.fields_json),
+        "created_at": request.created_at,
+        "released_at": request.released_at,
+        "released_by": request.released_by,
+    }
+
+
+def released(db: Session, request: ExportRequest, web: WebSession, check: dict | None, by: str) -> dict:
+    """Record the release and hand over exactly the rows and fields that were asked for."""
+    request.released_at, request.released_by, request.pending_id = time.time(), by, None
+    db.add(request)
+    db.commit()
+    ids, fields = set(json.loads(request.customer_ids_json)), json.loads(request.fields_json)
+    return {
+        "status": "released",
+        "export": export_view(request) | {"rows": [{f: c[f] for f in fields} for c in CUSTOMERS if c["id"] in ids]},
+        "check": summary(check) if check else None,
+        "trusted_until": web.export_trusted_until if export_trusted(web) else None,
+    }
+
+
+@app.get("/api/exports", dependencies=[api])
+def exports(session: Current, db: Db) -> dict:
+    """This person's export log, newest first, including requests that were never released."""
+    user, _ = session
+    rows = db.scalars(
+        select(ExportRequest).where(ExportRequest.user_id == user.id).order_by(ExportRequest.created_at.desc()).limit(50)
+    ).all()
+    return {"exports": [export_view(r) for r in rows]}
 
 
 @app.post("/api/export", dependencies=[api])
 def export(body: ExportBody, response: Response, session: Current, db: Db) -> dict:
-    """Sensitive: needs Cadence to agree (or the person to verify) when Cadence is on."""
-    user, _ = session
+    """Sensitive: needs Cadence to agree (or the person to verify) when Cadence is on.
+
+    Within the grace window after a verified export, the page's typing is still sent when
+    there is any: a check that says it isn't the owner ends the window and asks again, while
+    "too little to tell" or "unsure" is covered by the recent verification.
+    """
+    user, web = session
+    request = ExportRequest(
+        id=secrets.token_hex(16),
+        user_id=user.id,
+        name=body.name,
+        reason=body.reason,
+        audience=body.audience,
+        recipient=body.recipient,
+        customer_ids_json=json.dumps(body.customer_ids),
+        fields_json=json.dumps(body.fields),
+        created_at=time.time(),
+    )
     if user.cadence_subject is None:
-        return {"status": "released", "customers": CUSTOMERS, "check": None}
+        return released(db, request, web, None, "password")
+    trusted = export_trusted(web)
+    if trusted and body.evidence is None:
+        return released(db, request, web, None, "recent")
     check = cadence(
         "POST", "/v1/checks", {"subject": user.cadence_subject, "evidence": body.evidence, "action": "export_customers"}
     )
     if check["resolved"]:
-        return {"status": "released", "customers": CUSTOMERS, "check": summary(check)}
-    return start_pending(db, response, user, "export", check)
+        trust_exports(db, web)
+        return released(db, request, web, check, check["resolved_by"])
+    if trusted and check["outcome"] != "INCONSISTENT":
+        return released(db, request, web, None, "recent")
+    if trusted:
+        web.export_trusted_until = None
+    out = start_pending(db, response, user, "export", check)
+    request.pending_id = out["pending"]
+    db.add(request)
+    db.commit()
+    return out
+
+
+class DeleteAccountBody(BaseModel):
+    confirmation: Literal["delete northwind"]
+    evidence: str | None = Field(default=None, max_length=64)
+
+
+def deletion_binding(user: User, web: WebSession) -> str:
+    return f":{web.token_hash}:{user.cadence_subject}:{user.cadence_since}"
+
+
+def delete_account_data(db: Session, response: Response, user: User, web: WebSession) -> dict:
+    # Claim the account and check that the session and Cadence connection survived verification.
+    active_session = select(WebSession.token_hash).where(
+        WebSession.token_hash == web.token_hash, WebSession.user_id == user.id, WebSession.expires_at > time.time()
+    ).exists()
+    claimed = db.execute(
+        update(User)
+        .where(
+            User.id == user.id,
+            User.cadence_subject == user.cadence_subject,
+            User.cadence_since == user.cadence_since,
+            active_session,
+        )
+        .values(cadence_subject=None)
+        .execution_options(synchronize_session=False)
+    )
+    if claimed.rowcount != 1:
+        raise HTTPException(409, "deletion_session_changed")
+    for model in (ExportRequest, Pending, ConnectState, WebSession):
+        db.execute(delete(model).where(model.user_id == user.id))
+    db.delete(user)
+    db.commit()
+    response.delete_cookie(COOKIE, path="/")
+    response.delete_cookie(PENDING_COOKIE, path="/")
+    return {"status": "deleted", "kind": "delete"}
+
+
+@app.post("/api/account/delete", dependencies=[api])
+def delete_account(body: DeleteAccountBody, response: Response, session: Current, db: Db) -> dict:
+    user, web = session
+    check = cadence(
+        "POST", "/v1/checks", {"subject": linked_subject(user), "evidence": body.evidence, "action": "delete_account"}
+    )
+    if check["resolved"]:
+        return delete_account_data(db, response, user, web)
+    return start_pending(db, response, user, "delete", check, binding=deletion_binding(user, web))
 
 
 @app.post("/api/finish", dependencies=[api])
@@ -397,17 +632,25 @@ def finish(
     browser: Annotated[str | None, Cookie(alias=PENDING_COOKIE)] = None,
     token: Annotated[str | None, Cookie(alias=COOKIE)] = None,
 ) -> dict:
-    """Back from Cadence: finish whatever was waiting (a sign-in or an export)."""
+    """Back from Cadence: finish the action that was waiting."""
     pending = db.get(Pending, body.pending)
     if pending is None:
         raise HTTPException(400, "pending_unknown")
     if pending.kind == "sign_in":
         return login_finish(body, response, db, browser)
-    user, _ = current(db, token)
+    user, web = current(db, token)
     if user.id != pending.user_id:
         raise HTTPException(403, "pending_other_user")
+    if pending.kind == "delete":
+        linked_subject(user)
+        verified_pending(db, body.pending, "delete", browser, binding=deletion_binding(user, web))
+        return delete_account_data(db, response, user, web)
     _, check = finish_pending(db, body.pending, "export", browser)
-    return {"status": "released", "kind": "export", "customers": CUSTOMERS, "check": summary(check)}
+    request = db.scalar(select(ExportRequest).where(ExportRequest.pending_id == pending.id))
+    if request is None:
+        raise HTTPException(400, "pending_unknown")
+    trust_exports(db, web)
+    return {"kind": "export", **released(db, request, web, check, check["resolved_by"])}
 
 
 @app.get("/api/health")

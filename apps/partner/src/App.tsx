@@ -1,19 +1,21 @@
 import type { ActivityRecorder } from '@cadence/sdk'
-import { LogOut, Shield, Users } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { CadenceBadge, Logo, Verdict } from '@/components/Brand'
+import { Logo } from '@/components/Brand'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { api, explain, recordActivity, type CheckSummary, type Me } from '@/lib/api'
-import { Customers, downloadCsv, type Customer, type Released } from '@/pages/Customers'
+import { api, explain, recordActivity, type Me } from '@/lib/api'
+import { downloadExport, type ExportFile } from '@/lib/exports'
+import { Account } from '@/pages/Account'
+import { Customers } from '@/pages/Customers'
+import { Exports } from '@/pages/Exports'
 import { Login } from '@/pages/Login'
 import { Security } from '@/pages/Security'
 
-type View = 'customers' | 'security'
+type View = 'customers' | 'exports' | 'security' | 'account'
 
 /** Where Cadence sends people back: linking (/cadence/callback) or after verifying (/cadence/return). */
-async function handleReturn(): Promise<{ me?: Me; view?: View; released?: Released; error?: string } | null> {
+async function handleReturn(): Promise<{ me?: Me; view?: View; error?: string; released?: ExportFile; deleted?: true } | null> {
   const path = window.location.pathname
   const params = new URLSearchParams(window.location.search)
   const clean = () => window.history.replaceState(null, '', '/')
@@ -27,11 +29,14 @@ async function handleReturn(): Promise<{ me?: Me; view?: View; released?: Releas
     if (path === '/cadence/return') {
       clean()
       const out = await api<
-        { kind: 'sign_in'; me: Me } | { kind: 'export'; customers: Customer[]; check: CheckSummary }
+        | { kind: 'sign_in'; me: Me }
+        | { kind: 'export'; export: ExportFile }
+        | { kind: 'delete' }
       >('POST', '/finish', { pending: params.get('pending') })
       if (out.kind === 'sign_in') return { me: out.me }
-      downloadCsv(out.customers)
-      return { released: { customers: out.customers, check: out.check } }
+      if (out.kind === 'delete') return { deleted: true }
+      downloadExport(out.export)
+      return { view: 'exports', released: out.export }
     }
   } catch (e) {
     return { error: explain(e) }
@@ -42,18 +47,32 @@ async function handleReturn(): Promise<{ me?: Me; view?: View; released?: Releas
 export default function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined)
   const [view, setView] = useState<View>('customers')
-  const [released, setReleased] = useState<Released | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [accountDeleted, setAccountDeleted] = useState(false)
+  // Exports: whether to open straight into a new one, and one just released on the way back from Cadence.
+  const [newExport, setNewExport] = useState(false)
+  const [released, setReleased] = useState<ExportFile | null>(null)
   const recorder = useRef<ActivityRecorder | null>(null)
+  const returning = useRef<ReturnType<typeof handleReturn> | null>(null)
 
   useEffect(() => {
+    // Share the return request across effect replays so a pending action only finishes once.
+    returning.current ??= handleReturn()
+    let active = true
     void (async () => {
-      const back = await handleReturn()
+      const back = await returning.current
+      if (!active) return
+      const current = back?.deleted ? null : back?.me ?? (await api<Me | null>('GET', '/me').catch(() => null))
+      if (!active) return
       if (back?.view) setView(back.view)
-      if (back?.released) setReleased(back.released)
       if (back?.error) setNotice(back.error)
-      setMe(back?.me ?? (await api<Me | null>('GET', '/me').catch(() => null)))
+      if (back?.released) setReleased(back.released)
+      if (back?.deleted) setAccountDeleted(true)
+      setMe(current)
     })()
+    return () => {
+      active = false
+    }
   }, [])
 
   // While signed in, the page keeps the last few minutes of typing and clicking, ready to hand
@@ -67,86 +86,97 @@ export default function App() {
   async function signOut() {
     await api('POST', '/logout').catch(() => undefined)
     setMe(null)
-    setReleased(null)
   }
 
-  if (me === undefined) return <p className="p-8 text-muted-foreground">Loading…</p>
+  function onAccountDeleted() {
+    setMe(null)
+    setView('customers')
+    setNotice(null)
+    setNewExport(false)
+    setReleased(null)
+    setAccountDeleted(true)
+  }
+
+  if (me === undefined) return <div aria-busy className="min-h-dvh" />
   if (me === null)
     return (
-      <>
-        {notice && (
-          <Alert variant="destructive" role="alert" className="m-4 max-w-xl">
-            <AlertDescription>{notice}</AlertDescription>
-          </Alert>
-        )}
-        <Login onSignedIn={(m) => (setMe(m), setNotice(null))} />
-      </>
+      <Login
+        onSignedIn={(m) => (setMe(m), setNotice(null), setAccountDeleted(false))}
+        notice={notice}
+        status={accountDeleted ? 'Your Northwind account was deleted.' : undefined}
+      />
     )
 
-  const nav: { id: View; label: string; icon: typeof Users }[] = [
-    { id: 'customers', label: 'Customers', icon: Users },
-    { id: 'security', label: 'Security', icon: Shield },
+  const nav: { id: View; label: string }[] = [
+    { id: 'customers', label: 'Customers' },
+    { id: 'exports', label: 'Exports' },
+    { id: 'security', label: 'Security' },
+    { id: 'account', label: 'Account' },
   ]
 
   return (
-    <div className="grid min-h-svh md:grid-cols-[15rem_1fr]">
-      <aside className="flex flex-col gap-6 bg-chrome px-4 py-5 text-chrome-foreground md:min-h-svh">
-        <Logo inverted />
-        <nav aria-label="Northwind" className="flex gap-1 md:grid">
-          {nav.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setView(id)}
-              aria-current={view === id ? 'page' : undefined}
-              className={`flex cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-left text-base transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-marigold focus-visible:outline-none ${
-                view === id ? 'bg-white/12 font-medium' : 'text-chrome-foreground/80 hover:bg-white/8'
-              }`}
+    <div className="flex min-h-dvh flex-col">
+      <header className="bg-chrome text-chrome-foreground">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-2 px-5 py-2 sm:h-14 sm:flex-nowrap sm:gap-6 sm:px-8 sm:py-0">
+          <Logo inverted />
+          <nav aria-label="Northwind" className="order-last flex w-full flex-wrap gap-0.5 sm:order-none sm:w-auto sm:flex-nowrap sm:gap-1">
+            {nav.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => (setNewExport(false), setReleased(null), setView(id))}
+                aria-current={view === id ? 'page' : undefined}
+                className={`h-8 cursor-pointer rounded-md px-2 text-sm sm:px-3 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-marigold ${
+                  view === id ? 'bg-white/12 font-medium' : 'text-chrome-foreground/75 hover:bg-white/8 hover:text-chrome-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="ml-auto flex items-center gap-1">
+            <span className="hidden max-w-56 truncate px-2 text-sm text-chrome-foreground/75 md:inline">{me.email}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={signOut}
+              className="text-chrome-foreground hover:bg-white/10 hover:text-chrome-foreground"
             >
-              <Icon className="size-4" aria-hidden="true" />
-              {label}
-            </button>
-          ))}
-        </nav>
-        <div className="mt-auto hidden gap-3 md:grid">
-          {me.cadence.connected && <CadenceBadge className="text-chrome-foreground/80" />}
-          <p className="truncate text-sm text-chrome-foreground/70">{me.email}</p>
-          <Button variant="ghost" onClick={signOut} className="h-9 justify-start px-2 text-chrome-foreground hover:bg-white/10 hover:text-chrome-foreground">
-            <LogOut aria-hidden="true" />
-            Sign out
-          </Button>
+              Sign out
+            </Button>
+          </div>
         </div>
-      </aside>
+      </header>
 
-      <main className="grid content-start gap-6 px-5 py-6 sm:px-8 sm:py-8">
-        <div className="flex items-center justify-between gap-3 md:hidden">
-          <span className="truncate text-sm text-muted-foreground">{me.email}</span>
-          <Button variant="outline" onClick={signOut} className="h-9 px-3">
-            <LogOut aria-hidden="true" />
-            Sign out
-          </Button>
-        </div>
+      <main className="mx-auto grid w-full max-w-6xl flex-1 content-start gap-6 px-5 py-8 sm:px-8 sm:py-10">
         {notice && (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         )}
-        {me.sign_in_check && view === 'customers' && !released && (
-          <div className="rounded-lg border border-border bg-card px-4 py-3">
-            <Verdict check={me.sign_in_check} what="sign-in" />
-          </div>
-        )}
-        {!me.cadence.connected && view === 'customers' && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-marigold/60 bg-marigold/10 px-4 py-3">
-            <p>Add a second check to your sign-in without extra codes: protect your account with Cadence.</p>
-            <Button variant="outline" onClick={() => setView('security')} className="h-9 px-3">
-              Set it up
+        {view === 'customers' && !me.cadence.connected && (
+          <Notice>
+            <p>Your account is protected by a password only.</p>
+            <Button variant="outline" onClick={() => setView('security')}>
+              Add Cadence
             </Button>
-          </div>
+          </Notice>
         )}
-        {view === 'customers' && <Customers me={me} recorder={recorder} released={released} />}
+        {view === 'customers' && <Customers onNewExport={() => (setNewExport(true), setView('exports'))} />}
+        {view === 'exports' && <Exports me={me} recorder={recorder} startNew={newExport} justReleased={released} />}
         {view === 'security' && <Security me={me} onMe={setMe} pageRecorder={recorder} />}
+        {view === 'account' && (
+          <Account me={me} onSecurity={() => setView('security')} onDeleted={onAccountDeleted} />
+        )}
       </main>
+    </div>
+  )
+}
+
+function Notice({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-3.5">
+      {children}
     </div>
   )
 }

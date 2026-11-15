@@ -98,6 +98,7 @@ export interface StepUpInfo {
 export const ACTION_LABEL: Record<string, string> = {
   sign_in: 'Sign-in',
   export_customers: 'Export customer records',
+  delete_account: 'Delete account',
 }
 
 export type Outcome = 'CONSISTENT' | 'UNCERTAIN' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE'

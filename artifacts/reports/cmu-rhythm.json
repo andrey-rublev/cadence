@@ -1,0 +1,318 @@
+{
+  "version": "rhythm-sm-20261115-032209",
+  "modality": "rhythm",
+  "use": "password",
+  "source": "cmu",
+  "dataset": "CMU keystroke benchmark (Killourhy and Maxion, DSN 2009): 51 typists, one password, 400 repetitions over 8 sessions",
+  "model": "Scaled Manhattan distance to the earlier sign-ins, floored spread",
+  "floor": {
+    "floor_ms": 5.0,
+    "floor_share": 0.1,
+    "mean_eer": 0.17318910256410258
+  },
+  "floor_grid": [
+    {
+      "floor_ms": 0.0,
+      "floor_share": 0.0,
+      "mean_eer": 0.2329967948717949
+    },
+    {
+      "floor_ms": 0.0,
+      "floor_share": 0.05,
+      "mean_eer": 0.19682692307692307
+    },
+    {
+      "floor_ms": 0.0,
+      "floor_share": 0.1,
+      "mean_eer": 0.17576923076923076
+    },
+    {
+      "floor_ms": 0.0,
+      "floor_share": 0.2,
+      "mean_eer": 0.177275641025641
+    },
+    {
+      "floor_ms": 5.0,
+      "floor_share": 0.0,
+      "mean_eer": 0.20599358974358975
+    },
+    {
+      "floor_ms": 5.0,
+      "floor_share": 0.05,
+      "mean_eer": 0.1803044871794872
+    },
+    {
+      "floor_ms": 5.0,
+      "floor_share": 0.1,
+      "mean_eer": 0.17318910256410258
+    },
+    {
+      "floor_ms": 5.0,
+      "floor_share": 0.2,
+      "mean_eer": 0.1794551282051282
+    },
+    {
+      "floor_ms": 10.0,
+      "floor_share": 0.0,
+      "mean_eer": 0.19418269230769228
+    },
+    {
+      "floor_ms": 10.0,
+      "floor_share": 0.05,
+      "mean_eer": 0.1788782051282051
+    },
+    {
+      "floor_ms": 10.0,
+      "floor_share": 0.1,
+      "mean_eer": 0.1753365384615385
+    },
+    {
+      "floor_ms": 10.0,
+      "floor_share": 0.2,
+      "mean_eer": 0.18258012820512823
+    },
+    {
+      "floor_ms": 20.0,
+      "floor_share": 0.0,
+      "mean_eer": 0.1896474358974359
+    },
+    {
+      "floor_ms": 20.0,
+      "floor_share": 0.05,
+      "mean_eer": 0.18572115384615384
+    },
+    {
+      "floor_ms": 20.0,
+      "floor_share": 0.1,
+      "mean_eer": 0.18620192307692307
+    },
+    {
+      "floor_ms": 20.0,
+      "floor_share": 0.2,
+      "mean_eer": 0.18927884615384616
+    },
+    {
+      "floor_ms": 40.0,
+      "floor_share": 0.0,
+      "mean_eer": 0.2043429487179487
+    },
+    {
+      "floor_ms": 40.0,
+      "floor_share": 0.05,
+      "mean_eer": 0.2036698717948718
+    },
+    {
+      "floor_ms": 40.0,
+      "floor_share": 0.1,
+      "mean_eer": 0.20365384615384616
+    },
+    {
+      "floor_ms": 40.0,
+      "floor_share": 0.2,
+      "mean_eer": 0.20088141025641026
+    }
+  ],
+  "participants": {
+    "total": 51,
+    "tuning": 26,
+    "held_out": 25
+  },
+  "thresholds_by_earlier_and_keys": {
+    "3": {
+      "6": {
+        "reject_at": -3.4523682022593003,
+        "accept_at": -1.3611709331674462
+      },
+      "8": {
+        "reject_at": -2.9686483161038404,
+        "accept_at": -1.3649105459104311
+      },
+      "10": {
+        "reject_at": -2.740581843027455,
+        "accept_at": -1.4252046466850703
+      }
+    },
+    "5": {
+      "6": {
+        "reject_at": -2.2179188091741033,
+        "accept_at": -1.042459602518609
+      },
+      "8": {
+        "reject_at": -2.2423121188570376,
+        "accept_at": -1.0546838745675573
+      },
+      "10": {
+        "reject_at": -2.3545226555343675,
+        "accept_at": -1.1125471374476839
+      }
+    }
+  },
+  "thresholds": {
+    "reject_at": -2.740581843027455,
+    "accept_at": -1.4252046466850703,
+    "target_error": 0.05,
+    "applies_to": "3 earlier sign-ins, 10 or more keys (others in thresholds_by_earlier_and_keys)"
+  },
+  "by_keys": [
+    {
+      "keys": 6,
+      "practice": {
+        "earlier_sign_ins": 3,
+        "auc": {
+          "value": 0.8767,
+          "low": 0.8206,
+          "high": 0.9193
+        },
+        "eer": {
+          "value": 0.1928,
+          "low": 0.1399,
+          "high": 0.2597
+        },
+        "thresholds": {
+          "reject_at": -3.4523682022593003,
+          "accept_at": -1.3611709331674462,
+          "target_error": 0.05
+        },
+        "at_thresholds": {
+          "genuine_accepted": 0.583,
+          "genuine_rejected": 0.049,
+          "impostor_accepted": 0.0498,
+          "impostor_rejected": 0.3292
+        }
+      },
+      "history": {
+        "earlier_sign_ins": 5,
+        "auc": {
+          "value": 0.8949,
+          "low": 0.8485,
+          "high": 0.9257
+        },
+        "eer": {
+          "value": 0.167,
+          "low": 0.1269,
+          "high": 0.2274
+        },
+        "thresholds": {
+          "reject_at": -2.2179188091741033,
+          "accept_at": -1.042459602518609,
+          "target_error": 0.05
+        },
+        "at_thresholds": {
+          "genuine_accepted": 0.606,
+          "genuine_rejected": 0.049,
+          "impostor_accepted": 0.0498,
+          "impostor_rejected": 0.4618
+        }
+      }
+    },
+    {
+      "keys": 8,
+      "practice": {
+        "earlier_sign_ins": 3,
+        "auc": {
+          "value": 0.8779,
+          "low": 0.818,
+          "high": 0.9207
+        },
+        "eer": {
+          "value": 0.2042,
+          "low": 0.1504,
+          "high": 0.2707
+        },
+        "thresholds": {
+          "reject_at": -2.9686483161038404,
+          "accept_at": -1.3649105459104311,
+          "target_error": 0.05
+        },
+        "at_thresholds": {
+          "genuine_accepted": 0.573,
+          "genuine_rejected": 0.049,
+          "impostor_accepted": 0.0498,
+          "impostor_rejected": 0.426
+        }
+      },
+      "history": {
+        "earlier_sign_ins": 5,
+        "auc": {
+          "value": 0.8976,
+          "low": 0.8478,
+          "high": 0.9305
+        },
+        "eer": {
+          "value": 0.166,
+          "low": 0.1269,
+          "high": 0.2205
+        },
+        "thresholds": {
+          "reject_at": -2.2423121188570376,
+          "accept_at": -1.0546838745675573,
+          "target_error": 0.05
+        },
+        "at_thresholds": {
+          "genuine_accepted": 0.617,
+          "genuine_rejected": 0.049,
+          "impostor_accepted": 0.0498,
+          "impostor_rejected": 0.445
+        }
+      }
+    },
+    {
+      "keys": 10,
+      "practice": {
+        "earlier_sign_ins": 3,
+        "auc": {
+          "value": 0.891,
+          "low": 0.8334,
+          "high": 0.9304
+        },
+        "eer": {
+          "value": 0.201,
+          "low": 0.1466,
+          "high": 0.2607
+        },
+        "thresholds": {
+          "reject_at": -2.740581843027455,
+          "accept_at": -1.4252046466850703,
+          "target_error": 0.05
+        },
+        "at_thresholds": {
+          "genuine_accepted": 0.616,
+          "genuine_rejected": 0.049,
+          "impostor_accepted": 0.0498,
+          "impostor_rejected": 0.4878
+        }
+      },
+      "history": {
+        "earlier_sign_ins": 5,
+        "auc": {
+          "value": 0.9044,
+          "low": 0.859,
+          "high": 0.9346
+        },
+        "eer": {
+          "value": 0.1569,
+          "low": 0.1212,
+          "high": 0.2059
+        },
+        "thresholds": {
+          "reject_at": -2.3545226555343675,
+          "accept_at": -1.1125471374476839,
+          "target_error": 0.05
+        },
+        "at_thresholds": {
+          "genuine_accepted": 0.644,
+          "genuine_rejected": 0.049,
+          "impostor_accepted": 0.0498,
+          "impostor_rejected": 0.4274
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "One password for everyone, typed by people who practised it hundreds of times; real passwords differ per person and impostors usually know them less well.",
+    "Lab keyboards, one per typist; a different keyboard or device on a real sign-in will score lower.",
+    "Passwords shorter than 6 keys are not compared; beyond 10 keys the 10-key thresholds are used, and with 4 earlier sign-ins the 3-sign-in ones.",
+    "The general sign-in model cannot be measured on CMU (no free typing), so the product's rule for combining the two was not measured together.",
+    "Thresholds were set on CMU typists; they have not been calibrated on people using Cadence."
+  ]
+}

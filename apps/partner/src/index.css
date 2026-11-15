@@ -2,14 +2,17 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Light only for now: the shadcn dark styles apply under a .dark class, never from the OS setting. */
+@custom-variant dark (&:is(.dark *));
+
 /*
-  Northwind CRM: a conventional business tool, deliberately unlike Cadence's own look.
-  Deep spruce chrome, a marigold brand mark, plain system type.
+  Northwind CRM: a plain business tool that looks nothing like Cadence.
+  Spruce top bar, a marigold mark, system type. Radius: controls 8px, panels 11px.
 */
 @theme inline {
-  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-heading: 'Segoe UI Variable Display', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', sans-serif;
+  --font-heading: ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -42,30 +45,31 @@
 }
 
 :root {
+  color-scheme: light;
   --radius: 0.5rem;
-  --background: #f4f6f5;
-  --foreground: #14211f;
-  --card: #ffffff;
-  --card-foreground: #14211f;
-  --popover: #ffffff;
-  --popover-foreground: #14211f;
+  --background: #f5f7f6;
+  --foreground: #101b19;
+  --card: #fefefe;
+  --card-foreground: #101b19;
+  --popover: #fefefe;
+  --popover-foreground: #101b19;
   --primary: #12706b;
-  --primary-foreground: #ffffff;
-  --secondary: #e4ecea;
-  --secondary-foreground: #14211f;
-  --muted: #edf1f0;
-  --muted-foreground: #4f5f5c;
-  --accent: #e4ecea;
-  --accent-foreground: #14211f;
+  --primary-foreground: #fefefe;
+  --secondary: #e7eeec;
+  --secondary-foreground: #101b19;
+  --muted: #ebf0ee;
+  --muted-foreground: #53625f;
+  --accent: #e7eeec;
+  --accent-foreground: #101b19;
   --destructive: #b42318;
-  --border: #d5dedc;
-  --input: #c3cfcc;
+  --border: #dfe6e4;
+  --input: #b3bfbc;
   --ring: #12706b;
   --chrome: #0f3b3a;
   --chrome-foreground: #e7f0ee;
   --marigold: #f0b450;
   --good: #1f7a45;
-  --unsure: #9a6200;
+  --unsure: #8f5b00;
 }
 
 @layer base {
@@ -77,8 +81,13 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-size: 0.9375rem;
+    line-height: 1.5;
   }
-  h1, h2, h3 {
-    @apply font-heading tracking-tight;
+  h1,
+  h2,
+  h3 {
+    @apply font-heading font-semibold tracking-tight;
+    line-height: 1.2;
   }
 }

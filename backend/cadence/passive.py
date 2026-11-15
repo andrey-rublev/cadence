@@ -7,7 +7,8 @@ The browser sends ordinary pointer movement and key timing. It arrives two ways:
 - from a partner site, as whatever the person happened to do before signing in or before a
   sensitive action (`/v1/evidence`), with no minimum. A sign-in usually gives 15-45 keys,
   which the login model scores; longer stretches go to the 50-key model. Once a person has
-  a few verified sign-ins on that site, a new sign-in is also compared with those.
+  a few verified sign-ins on that site, the password part of a new sign-in is also compared
+  key by key with how they typed it before (password rhythm, features/rhythm.py).
 
 A decision combines the inputs that could be scored:
 
@@ -34,6 +35,8 @@ from .core.models import PassiveWindow, UserSession, now
 from .features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA, MODIFIER, presses_from_events
 from .features.keys import window_vector as key_vector
 from .features.keys import windows as key_windows
+from .features.rhythm import MAX_PRESSES, MIN_PRESSES, RHYTHM_SCHEMA, presses_of, rhythm_vector, secret_run
+from .features.rhythm import clean as clean_rhythm
 from .features.strokes import K_FEATURE_NAMES, K_SCHEMA, strokes
 from .features.strokes import window_vector as stroke_vector
 from .policy import CONSISTENT, INCONSISTENT, INSUFFICIENT, UNCERTAIN
@@ -65,6 +68,11 @@ def history_model() -> Model | None:
     return load_active(settings.artifacts_dir / "keys-history", KEY_FEATURE_NAMES, KEY_SCHEMA)
 
 
+def rhythm_model() -> Model | None:
+    """Compares the password part of a sign-in, key by key, with earlier sign-ins on the site."""
+    return load_active(settings.artifacts_dir / "rhythm", ("rhythm",), RHYTHM_SCHEMA)
+
+
 def earlier_sign_ins(db: Session, account_id: int, site_id: str) -> list[np.ndarray]:
     """The latest verified sign-ins on this site, oldest first (at most `history_max_sign_ins`)."""
     rows = db.scalars(
@@ -73,6 +81,7 @@ def earlier_sign_ins(db: Session, account_id: int, site_id: str) -> list[np.ndar
             PassiveWindow.account_id == account_id,
             PassiveWindow.site_id == site_id,
             PassiveWindow.purpose == "signin",
+            PassiveWindow.modality == "keys",
             PassiveWindow.feature_schema == KEY_SCHEMA,
         )
         .order_by(PassiveWindow.captured_at.desc(), PassiveWindow.id.desc())
@@ -173,6 +182,21 @@ def evidence_windows(key_events: list, pointer_events: list) -> list[dict]:
     return out
 
 
+def rhythm_window(key_events: list) -> dict | None:
+    """The password typed in a sign-in, as a rhythm window, or None if nothing was typed in a
+    secret field (the password was filled in or pasted). Under MIN_PRESSES it carries no values."""
+    run = secret_run(presses_from_events(key_events)) if key_events else []
+    if not run:
+        return None
+    usable = MIN_PRESSES <= len(run) <= MAX_PRESSES
+    return {
+        "modality": "rhythm",
+        "use": "password",
+        "presses": len(run),
+        "values": clean_rhythm(rhythm_vector(run)) if usable else None,
+    }
+
+
 def _clean(vector: np.ndarray) -> list[float | None]:
     return [None if not np.isfinite(v) else float(v) for v in vector.tolist()]
 
@@ -204,6 +228,15 @@ class Part:
     # Sign-ins only: earlier verified sign-ins on the same site the score also compared with.
     earlier_sign_ins: int = 0
     history_model_version: str | None = None
+    # Sign-ins only: the password typed, compared key by key with earlier sign-ins on the site.
+    # not_typed (filled in or pasted) | too_short | learning (too few earlier sign-ins of
+    # this length) | compared | model_missing
+    password: str | None = None
+    rhythm_outcome: str | None = None
+    rhythm_score: float | None = None
+    rhythm_reject_at: float | None = None
+    rhythm_accept_at: float | None = None
+    rhythm_model_version: str | None = None
 
 
 @dataclass
@@ -324,9 +357,13 @@ def decide_passive(db: Session, account_id: int, session: UserSession) -> Passiv
 
 def score_practice(db: Session, account_id: int, window: dict) -> Part:
     """A practice sign-in, typed right after connecting a site, against the typing-test profile.
-    The profile may still be a single sitting: practice is what adds the second one."""
+    The profile may still be a single sitting: practice is what adds the second one.
+
+    A long email and password, or a few corrections, take a sign-in past `long_window_keys`;
+    it is still one sign-in, scored by the model for that length."""
+    model = login_model() if window["use"] == "login" else passive_model("keys")
     return _score_part(
-        db, account_id, "keys", [_array(window["values"])], login_model(), "login", window["keys"], one_sitting_ok=True
+        db, account_id, "keys", [_array(window["values"])], model, window["use"], window["keys"], one_sitting_ok=True
     )
 
 
@@ -354,6 +391,70 @@ def _with_earlier_sign_ins(db: Session, account_id: int, site_id: str, part: Par
     return part
 
 
+def earlier_rhythms(db: Session, account_id: int, site_id: str, presses: int) -> list[np.ndarray]:
+    """The latest verified sign-ins on this site whose password had this many presses, oldest
+    first (at most `history_max_sign_ins`). A different count is a typo or a new password."""
+    rows = db.scalars(
+        select(PassiveWindow.values_json)
+        .where(
+            PassiveWindow.account_id == account_id,
+            PassiveWindow.site_id == site_id,
+            PassiveWindow.purpose == "signin",
+            PassiveWindow.modality == "rhythm",
+            PassiveWindow.feature_schema == RHYTHM_SCHEMA,
+        )
+        .order_by(PassiveWindow.captured_at.desc(), PassiveWindow.id.desc())
+    ).all()
+    vectors = [np.array(json.loads(v), dtype=float) for v in rows]
+    matching = [v for v in vectors if presses_of(v) == presses][: settings.history_max_sign_ins]
+    return list(reversed(matching))
+
+
+def _merge(login: str, rhythm: str) -> str:
+    """The keyboard verdict from the sign-in model and the password rhythm, by the same rule
+    as across inputs: either looking like someone else holds it, else either match releases."""
+    outcomes = {login, rhythm}
+    for outcome in (INCONSISTENT, CONSISTENT, UNCERTAIN):
+        if outcome in outcomes:
+            return outcome
+    return login
+
+
+def _with_password_rhythm(db: Session, account_id: int, site_id: str, part: Part, windows: list[dict]) -> Part:
+    """Fold the key-by-key comparison of the password with earlier sign-ins into the keyboard part."""
+    window = next((w for w in windows if w["modality"] == "rhythm"), None)
+    if window is None:
+        part.password = "not_typed"
+        return part
+    if window["values"] is None:
+        part.password = "too_short"
+        return part
+    model = rhythm_model()
+    if model is None:
+        part.password = "model_missing"
+        return part
+    probe = np.array(window["values"], dtype=float)
+    earlier = earlier_rhythms(db, account_id, site_id, window["presses"])
+    thresholds = model.verifier.thresholds_for(len(earlier), window["presses"])
+    part.rhythm_model_version = model.version
+    if thresholds is None:
+        part.password = "learning"
+        return part
+    score = model.verifier.score(np.array(earlier), probe)
+    if not np.isfinite(score):
+        part.password = "learning"
+        return part
+    part.password = "compared"
+    part.rhythm_reject_at, part.rhythm_accept_at = thresholds
+    part.rhythm_score = float(score)
+    part.rhythm_outcome = CONSISTENT if score > thresholds[1] else INCONSISTENT if score < thresholds[0] else UNCERTAIN
+    part.earlier_sign_ins = len(earlier)
+    part.outcome = _merge(part.outcome, part.rhythm_outcome)
+    if part.outcome != INSUFFICIENT:
+        part.reason = None
+    return part
+
+
 def decide_evidence(
     db: Session, account_id: int, windows: list[dict], site_id: str | None = None, action: str | None = None
 ) -> PassiveDecision:
@@ -373,6 +474,8 @@ def decide_evidence(
         keys = _score_part(db, account_id, "keys", probes, login_model(), "login", sum(w["keys"] for w in short_keys))
         if action == "sign_in" and site_id is not None:
             keys = _with_earlier_sign_ins(db, account_id, site_id, keys, probes)
+    if action == "sign_in" and site_id is not None:
+        keys = _with_password_rhythm(db, account_id, site_id, keys, windows)
     clicks = _score_part(
         db, account_id, "pointer", [_array(w["values"]) for w in pointer], passive_model("pointer"), "standard",
         sum(w["strokes"] for w in pointer),

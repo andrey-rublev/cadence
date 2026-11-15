@@ -35,10 +35,13 @@ from ..passive import (
     decide_evidence,
     evidence_windows,
     history_model,
+    rhythm_model,
+    rhythm_window,
     recommend_test,
     score_practice,
     window_digest,
 )
+from ..features.rhythm import RHYTHM_SCHEMA
 from ..policy import CONSISTENT, INCONSISTENT, UNCERTAIN
 from ..product import CurrentAccount
 from ..setup import site_session
@@ -117,6 +120,8 @@ def submit_evidence(
         raise HTTPException(409, "evidence_already_used")
 
     windows = evidence_windows(body.keys, body.pointer)
+    if (password := rhythm_window(body.keys)) is not None:
+        windows.append(password)  # the password's own rhythm; counted in neither keys nor clicks
     token = secrets.token_urlsafe(32)
     db.add(
         EvidenceToken(
@@ -182,6 +187,24 @@ def learn(db: Session, check: SiteCheck) -> int:
         return 0
     session = site_session(db, check.account_id)
     for window in windows:
+        if window["modality"] == "rhythm":
+            # Only a sign-in's password is kept, to compare later sign-ins on this site with.
+            if check.action != "sign_in" or window.get("test") or window["values"] is None:
+                continue
+            db.add(
+                PassiveWindow(
+                    session_id=session.id,
+                    account_id=check.account_id,
+                    modality="rhythm",
+                    purpose="signin",
+                    site_id=check.site_id,
+                    feature_schema=RHYTHM_SCHEMA,
+                    values_json=json.dumps(window["values"]),
+                    digest=window_digest(window, f"check:{check.id}"),
+                    duration_ms=0,
+                )
+            )
+            continue
         if window["use"] != "login":
             purpose = "enroll"
         elif check.action == "sign_in" and not window.get("test"):
@@ -268,6 +291,7 @@ def _practice_status(db: Session, link: SiteLink) -> dict:
                 PassiveWindow.account_id == link.account_id,
                 PassiveWindow.site_id == link.site_id,
                 PassiveWindow.purpose == "signin",
+                PassiveWindow.modality == "keys",
             )
         )
         or 0
@@ -285,7 +309,7 @@ def _practice_status(db: Session, link: SiteLink) -> dict:
         "open": is_open,
         "complete": samples >= settings.history_min_sign_ins,
         # Whether new sign-ins are scored against these yet: only with a measured history model.
-        "compared": history_model() is not None,
+        "compared": history_model() is not None or rhythm_model() is not None,
     }
 
 
@@ -312,10 +336,11 @@ def add_practice_sign_in(body: PracticeBody, site: SiteBySecret, db: Db) -> dict
         raise HTTPException(409, "practice_closed")
     windows = _claim_evidence(db, site, body.evidence)
     link.practice_attempts += 1
-    sample = next((w for w in windows if w["modality"] == "keys" and w["use"] == "login"), None)
-    if sample is None:
+    # Whatever its length: a sign-in with a long email or a few corrections is still a sign-in.
+    sample = next((w for w in windows if w["modality"] == "keys"), None)
+    if sample is None:  # under `min_login_keys`: filled in or pasted rather than typed
         db.commit()
-        return {"accepted": False, "reason": "not_sign_in_length", **_practice_status(db, link)}
+        return {"accepted": False, "reason": "too_little_typing", **_practice_status(db, link)}
     part = score_practice(db, account.id, sample)
     if part.outcome not in (CONSISTENT, UNCERTAIN):
         db.commit()
@@ -336,6 +361,21 @@ def add_practice_sign_in(body: PracticeBody, site: SiteBySecret, db: Db) -> dict
             duration_ms=0,
         )
     )
+    password = next((w for w in windows if w["modality"] == "rhythm" and w["values"] is not None), None)
+    if password is not None:
+        db.add(
+            PassiveWindow(
+                session_id=link.practice_session_id,
+                account_id=account.id,
+                modality="rhythm",
+                purpose="signin",
+                site_id=site.id,
+                feature_schema=RHYTHM_SCHEMA,
+                values_json=json.dumps(password["values"]),
+                digest=window_digest(password, f"practice:{link.id}:{link.practice_attempts}"),
+                duration_ms=0,
+            )
+        )
     db.commit()
     return {"accepted": True, "reason": None, **_practice_status(db, link)}
 
@@ -419,7 +459,11 @@ def my_sites(account: CurrentAccount, db: Db) -> dict:
     remembered = dict(
         db.execute(
             select(PassiveWindow.site_id, func.count())
-            .where(PassiveWindow.account_id == account.id, PassiveWindow.purpose == "signin")
+            .where(
+                PassiveWindow.account_id == account.id,
+                PassiveWindow.purpose == "signin",
+                PassiveWindow.modality == "keys",
+            )
             .group_by(PassiveWindow.site_id)
         ).all()
     )
@@ -435,7 +479,7 @@ def my_sites(account: CurrentAccount, db: Db) -> dict:
             }
             for link, name in links
         ],
-        "sign_ins_compared": history_model() is not None,
+        "sign_ins_compared": history_model() is not None or rhythm_model() is not None,
         "checks": [
             {
                 "id": check.id,

@@ -1,143 +1,229 @@
-import { Check, Keyboard, MousePointerClick, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Check } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
+import { Progress } from '@/components/Shell'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { api, explain } from '@/lib/api'
 import type { Me, SetupStep } from '@/lib/product'
-import { usePassive } from '@/product/PassiveCapture'
+import { KEYS_PER_WINDOW, STROKES_PER_WINDOW, usePassive, type LastSample } from '@/product/PassiveCapture'
 
-import { SentenceTest, TargetTest } from './tests'
+import { SENTENCES, SentenceTest, TargetTest } from './tests'
 
 type StepId = 'consent' | 'clicks' | 'typing'
 
-const STEPS: { id: StepId; title: string; icon: ReactNode; time: string }[] = [
-  { id: 'consent', title: 'Agree to recording', icon: <ShieldCheck aria-hidden="true" />, time: '20 s' },
-  { id: 'clicks', title: 'Click test', icon: <MousePointerClick aria-hidden="true" />, time: 'about 40 s' },
-  { id: 'typing', title: 'Typing test', icon: <Keyboard aria-hidden="true" />, time: 'about 2 min' },
+const STEPS: { id: StepId; title: string }[] = [
+  { id: 'consent', title: 'Consent' },
+  { id: 'clicks', title: 'Click test' },
+  { id: 'typing', title: 'Typing test' },
 ]
+
+const SENTENCE_KEYS = Math.round(SENTENCES.reduce((sum, s) => sum + s.length, 0) / SENTENCES.length)
 
 const done = (s: SetupStep) => s.done >= s.needed
 
-function currentStep(me: Me): StepId {
+function currentStep(me: Me): StepId | 'done' {
   if (!me.consent) return 'consent'
   if (!done(me.setup.steps.clicks)) return 'clicks'
-  return 'typing'
+  if (!done(me.setup.steps.typing)) return 'typing'
+  return 'done'
 }
 
-function stepState(id: StepId, me: Me): string {
-  if (id === 'consent') return me.consent ? 'Done' : ''
-  const step = me.setup.steps[id]
-  return done(step) ? 'Done' : `${Math.min(step.done, step.needed)} of ${step.needed}`
+/** How far a step has got, from 0 to 1, counting input towards the sample in progress. */
+function fraction(step: SetupStep, pending: number, perSample: number): number {
+  if (done(step)) return 1
+  return (step.done * perSample + Math.min(pending, perSample)) / (step.needed * perSample)
+}
+
+/** Progress that never moves back: the pending count empties for a moment while a sample is saved. */
+function useHighWater(value: number): number {
+  const [high, setHigh] = useState(value)
+  if (value > high) setHigh(value)
+  return Math.max(high, value)
+}
+
+const NOT_COUNTED: Record<string, string> = {
+  too_little_movement: 'Those clicks had too little pointer movement to count. Keep going.',
+  too_little_typing: 'That stretch had too little typing to count. Keep going.',
+}
+
+/** Says so when the last sample of this kind was turned away, so a stalled bar is explained. */
+function notCounted(last: LastSample | null, modality: LastSample['modality']): string | null {
+  if (last?.purpose !== 'rejected' || last.modality !== modality) return null
+  return NOT_COUNTED[last.code ?? ''] ?? 'The last sample could not be saved. Keep going.'
+}
+
+interface SetupProps {
+  me: Me
+  onMe: (me: Me) => void
+  /** Leave setup for the dashboard, from the closing screen. */
+  onFinish: () => void
 }
 
 /** Three short steps on the Cadence site collect what partner sites will be checked against. */
-export function Setup({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+export function Setup({ me, onMe, onFinish }: SetupProps) {
   const active = currentStep(me)
-  const [chosen, setChosen] = useState<StepId | null>(null)
-  const step = chosen ?? active
+  // The last sample usually lands mid-sentence; the sentence is finished before moving on.
+  const [midSentence, setMidSentence] = useState(false)
+  const view = active === 'done' && midSentence ? 'typing' : active
+
+  const finished: Record<StepId, boolean> = {
+    consent: me.consent,
+    clicks: done(me.setup.steps.clicks),
+    typing: done(me.setup.steps.typing),
+  }
 
   return (
-    <div className="grid gap-8">
-      <div className="grid gap-2">
-        <p className="font-mono text-sm text-muted-foreground">Set up Cadence · {me.username}</p>
-        <h1 className="text-4xl font-extrabold sm:text-5xl">Teach Cadence how you type and click.</h1>
-        <p className="max-w-prose text-lg text-muted-foreground">
-          About three minutes. Then, on each site you protect with Cadence, you type that site’s own sign-in a few
-          times. After that, the site checks you from the sign-in you were doing anyway.
-        </p>
-      </div>
+    <div className="mx-auto grid w-full max-w-2xl content-start gap-10">
+      {/* Shows where you are; the steps run in order and are not links. */}
+      <ol aria-label="Setup steps" className="flex items-center gap-2.5 font-mono text-xs sm:gap-3">
+        {STEPS.map(({ id, title }, i) => (
+          <li
+            key={id}
+            aria-current={id === view ? 'step' : undefined}
+            className={`flex items-center gap-2.5 sm:gap-3 ${i > 0 ? 'min-w-0 flex-1' : ''}`}
+          >
+            {i > 0 && (
+              <span
+                className={`h-px min-w-3 flex-1 transition-colors duration-300 ${finished[STEPS[i - 1].id] ? 'bg-foreground/30' : 'bg-border'}`}
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className={`flex items-center gap-2 whitespace-nowrap transition-colors duration-150 ${id === view ? 'text-foreground' : 'text-muted-foreground'}`}
+            >
+              <span className="grid size-3.5 place-items-center" aria-hidden="true">
+                {finished[id] ? (
+                  <Check className="size-3.5" strokeWidth={2.5} />
+                ) : (
+                  <span className={`size-1.5 rounded-full ${id === view ? 'bg-primary' : 'border border-input'}`} />
+                )}
+              </span>
+              {title}
+              {finished[id] && <span className="sr-only">(complete)</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
 
-      <div className="grid gap-6 lg:grid-cols-[17rem_1fr]">
-        <ol className="grid content-start gap-2" aria-label="Setup steps">
-          {STEPS.map(({ id, title, icon, time }, i) => {
-            const state = stepState(id, me)
-            const finished = state === 'Done'
-            const current = id === step
-            const reachable = finished || id === active
-            return (
-              <li key={id}>
-                <button
-                  type="button"
-                  disabled={!reachable}
-                  onClick={() => setChosen(id === active ? null : id)}
-                  aria-current={current ? 'step' : undefined}
-                  className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 ${
-                    current ? 'border-primary bg-card shadow-sm' : 'border-rule bg-card/50 hover:bg-card'
-                  }`}
-                >
-                  <span
-                    className={`grid size-8 shrink-0 place-items-center rounded-full [&_svg]:size-4 ${
-                      finished ? 'bg-consistent text-white' : current ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                    }`}
-                  >
-                    {finished ? <Check aria-hidden="true" /> : icon}
-                  </span>
-                  <span className="grid">
-                    <span className="font-medium">
-                      <span className="sr-only">Step {i + 1}: </span>
-                      {title}
-                    </span>
-                    <span className="text-sm text-muted-foreground">{state || time}</span>
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ol>
-
-        <section className="grid content-start gap-5 rounded-xl border border-rule bg-card p-5 sm:p-7">
-          {step === 'consent' && <ConsentStep onMe={onMe} />}
-          {step === 'clicks' && <ClickStep me={me} />}
-          {step === 'typing' && <TypingStep me={me} />}
-        </section>
-      </div>
+      <section
+        key={view}
+        className="grid animate-in gap-7 duration-300 fill-mode-both fade-in slide-in-from-bottom-2 motion-reduce:animate-none"
+      >
+        {view === 'consent' && <ConsentStep me={me} onMe={onMe} />}
+        {view === 'clicks' && <ClickStep me={me} />}
+        {view === 'typing' && <TypingStep me={me} onTyping={(typed) => setMidSentence(typed > 0)} />}
+        {view === 'done' && <Finished me={me} onFinish={onFinish} />}
+      </section>
     </div>
   )
 }
 
-function ConsentStep({ onMe }: { onMe: (me: Me) => void }) {
-  const [agree, setAgree] = useState(false)
+function Heading({ title, children }: { title: string; children?: ReactNode }) {
+  return (
+    <div className="grid gap-2.5">
+      <h1 className="text-3xl">{title}</h1>
+      {children && <p className="max-w-[60ch] text-muted-foreground">{children}</p>}
+    </div>
+  )
+}
+
+/** Made-up key presses for the consent picture: [gap before the press in px, hold from 0 to 1]. */
+const PRESSES: [gap: number, hold: number][] = [
+  [0, 0.62], [7, 0.4], [5, 0.85], [11, 0.5], [17, 0.3], [6, 0.7],
+  [9, 0.45], [16, 0.28], [5, 0.9], [8, 0.55], [4, 0.75], [10, 0.48],
+]
+
+/** The idea in one picture: the letters stay on the page, only their timing is kept. */
+function RhythmFigure() {
+  const row = 'grid gap-x-6 gap-y-1.5 px-5 py-3.5 sm:grid-cols-[7.75rem_1fr] sm:items-center'
+  const label = 'font-mono text-xs text-muted-foreground'
+  return (
+    <figure className="divide-y divide-border rounded-xl border border-border bg-card">
+      <figcaption className="sr-only">
+        An example: you type “meet at noon”; Cadence keeps only when each key went down and how long it was held.
+      </figcaption>
+      <div className={row} aria-hidden="true">
+        <span className={label}>You type</span>
+        <span className="font-mono text-lg tracking-[0.14em]">meet at noon</span>
+      </div>
+      <div className={row} aria-hidden="true">
+        <span className={label}>Cadence keeps</span>
+        <span className="flex h-9 items-center">
+          {PRESSES.map(([gap, hold], i) => (
+            <span
+              key={i}
+              className="h-9 w-[3px] shrink-0 rounded-[1px] bg-foreground/75"
+              style={{ marginLeft: gap, transform: `scaleY(${hold})` }}
+            />
+          ))}
+        </span>
+      </div>
+    </figure>
+  )
+}
+
+function ConsentStep({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function save() {
+  async function agree() {
+    setBusy(true)
+    setError(null)
     try {
       onMe(await api.request<Me>('POST', '/consent', { agree: true, keep_raw: false }))
     } catch (e) {
       setError(explain(e))
+      setBusy(false)
     }
   }
 
+  const term = 'font-medium'
+  const detail = 'text-muted-foreground'
   return (
     <>
-      <h2 className="text-2xl font-bold">What Cadence records</h2>
-      <ul className="grid gap-2 text-base">
-        <li>
-          <span className="font-medium">Recorded:</span> when each key goes down and up and which part of the keyboard
-          it is on; how the pointer moves and clicks. Only on Cadence pages and on sites you connect.
-        </li>
-        <li>
-          <span className="font-medium">Never recorded:</span> what you type, which keys of your password you press
-          (only their timing), or anything outside those pages.
-        </li>
-        <li>
-          <span className="font-medium">Kept:</span> measurements such as hold times and how straight a path was, for 30
-          days at most. You can delete everything at any time.
-        </li>
-      </ul>
-      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-rule p-4">
-        <Checkbox checked={agree} onCheckedChange={(v) => setAgree(v === true)} className="mt-1" />
-        <span>
-          I agree that Cadence may record my key timing and pointer movement as described, and use them to check
-          sign-ins and sensitive actions on sites I connect.
-        </span>
-      </label>
-      <Button size="lg" disabled={!agree} onClick={save} className="h-11 justify-self-start px-5 text-base">
-        Agree and continue
-      </Button>
+      <Heading title="What Cadence records">
+        Setup takes about three minutes: agree to this, then a short click test and a typing test.
+      </Heading>
+
+      <RhythmFigure />
+
+      <dl className="grid border-b border-border *:grid *:gap-x-6 *:gap-y-1 *:border-t *:border-border *:py-3.5 sm:*:grid-cols-[9rem_1fr]">
+        <div>
+          <dt className={term}>Recorded</dt>
+          <dd className={detail}>
+            Key timing and which part of the keyboard each key is on. Pointer movement and clicks. Only on Cadence and
+            on sites you connect.
+          </dd>
+        </div>
+        <div>
+          <dt className={term}>Never recorded</dt>
+          <dd className={detail}>What you type, or which keys of your password you press.</dd>
+        </div>
+        <div>
+          <dt className={term}>Kept</dt>
+          <dd className={detail}>
+            Measurements only. Your profile stays until you delete it. Checks and sign-in evidence are removed after{' '}
+            {me.retention_days} days. You can delete everything at any time.
+          </dd>
+        </div>
+      </dl>
+
+      <div className="grid gap-5">
+        <p className="max-w-[60ch]">
+          By continuing, you agree that Cadence may record your key timing and pointer movement as described, and use
+          them to check sign-ins and sensitive actions on sites you connect.
+        </p>
+        <Button size="lg" disabled={busy} onClick={agree} className="justify-self-start">
+          Agree and continue
+          <ArrowRight
+            aria-hidden="true"
+            className="transition-transform duration-150 group-hover/button:translate-x-0.5 motion-reduce:transition-none"
+          />
+        </Button>
+      </div>
       {error && (
-        <Alert variant="destructive" role="alert">
+        <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -145,67 +231,90 @@ function ConsentStep({ onMe }: { onMe: (me: Me) => void }) {
   )
 }
 
-function ServerProgress({ label, step }: { label: string; step: SetupStep }) {
-  return (
-    <p className="text-sm text-muted-foreground" role="status">
-      {label}: <span className="font-mono text-foreground">{Math.min(step.done, step.needed)}</span> of {step.needed}{' '}
-      saved{done(step) ? '. This step is done.' : '.'}
-    </p>
-  )
-}
-
 function ClickStep({ me }: { me: Me }) {
-  const { last } = usePassive()
-  const [round, setRound] = useState(0)
-  const [finished, setFinished] = useState(false)
+  const { progress, last } = usePassive()
   const step = me.setup.steps.clicks
-  const remaining = Math.max(1, step.needed - step.done)
-  // Fixed when each round starts: samples saved mid-round must not shorten the round.
-  const [total, setTotal] = useState(() => 12 * remaining + 2)
+  const filled = useHighWater(fraction(step, progress.strokes, STROKES_PER_WINDOW))
+  const left = Math.ceil((1 - filled) * step.needed * STROKES_PER_WINDOW)
+  const note = notCounted(last, 'pointer')
+
   return (
     <>
-      <div className="grid gap-1">
-        <h2 className="text-2xl font-bold">Click test</h2>
-        <p className="text-muted-foreground">
-          Circles appear one at a time. Click each one the way you normally would. Every twelve clicks become one sample.
-        </p>
-      </div>
-      <TargetTest key={round} total={total} onDone={() => setFinished(true)} />
-      <ServerProgress label="Click samples" step={step} />
-      {last?.purpose === 'rejected' && last.modality === 'pointer' && (
-        <p className="text-sm text-muted-foreground">One stretch had too little movement to count; a few more clicks will cover it.</p>
-      )}
-      {finished && !done(step) && (
-        <Button
-          variant="outline"
-          onClick={() => (setTotal(12 * remaining + 2), setRound((r) => r + 1), setFinished(false))}
-          className="h-11 justify-self-start px-5 text-base"
-        >
-          A few more circles
-        </Button>
-      )}
+      <Heading title="Click each circle">
+        Aim and click the way you normally would. It takes about 40 seconds.
+      </Heading>
+      <TargetTest progress={filled} status={left > 0 ? `${left} to go` : 'Saving…'} />
+      {note && <Note>{note}</Note>}
     </>
   )
 }
 
-function TypingStep({ me }: { me: Me }) {
-  const { progress } = usePassive()
+function TypingStep({ me, onTyping }: { me: Me; onTyping: (typed: number) => void }) {
+  const { progress, last } = usePassive()
   const step = me.setup.steps.typing
+  const complete = done(step)
+  const filled = useHighWater(fraction(step, progress.keys, KEYS_PER_WINDOW))
+  const sentences = Math.ceil(((1 - filled) * step.needed * KEYS_PER_WINDOW) / SENTENCE_KEYS)
+  // Where this visit began, so a sample saved mid-sentence does not swap the sentence.
+  const [start] = useState(step.done)
+  const note = notCounted(last, 'keys')
+
   return (
     <>
-      <div className="grid gap-1">
-        <h2 className="text-2xl font-bold">Typing test</h2>
-        <p className="text-muted-foreground">
-          Copy each sentence. About fifty keys make one sample; {step.needed} samples finish this step.
-        </p>
+      <Heading title="Type each sentence">
+        Type at your normal pace and leave mistakes if you like. The next sentence appears by itself.
+      </Heading>
+      <div className="grid gap-3">
+        <SentenceTest start={start} onTyping={onTyping} autoFocus />
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <Progress value={filled} label="Typing test progress" />
+          </div>
+          <span className="font-mono text-xs text-muted-foreground" aria-live="polite">
+            {complete
+              ? 'finish this sentence'
+              : sentences > 1
+                ? `about ${sentences} sentences to go`
+                : sentences === 1
+                  ? 'last sentence'
+                  : 'Saving…'}
+          </span>
+        </div>
       </div>
-      <SentenceTest start={step.done} autoFocus />
-      <div className="grid gap-1">
-        <ServerProgress label="Typing samples" step={step} />
-        <p className="text-sm text-muted-foreground">
-          Keys towards the next sample: <span className="font-mono">{progress.keys} / 50</span>
-        </p>
-      </div>
+      {!complete && note && <Note>{note}</Note>}
+    </>
+  )
+}
+
+function Note({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-sm text-muted-foreground" role="status">
+      {children}
+    </p>
+  )
+}
+
+const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
+
+/** The closing screen: setup is saved, and the dashboard is one click away. */
+function Finished({ me, onFinish }: { me: Me; onFinish: () => void }) {
+  return (
+    <>
+      <Heading title="You’re set up">
+        Cadence now has a profile of how you type and click. Connect a site and your sign-ins there are checked
+        against it.
+      </Heading>
+      <p className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+        <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
+        {count(me.passive.keys.windows, 'typing sample')} · {count(me.passive.pointer.windows, 'click sample')} saved
+      </p>
+      <Button size="lg" onClick={onFinish} className="justify-self-start">
+        Go to dashboard
+        <ArrowRight
+          aria-hidden="true"
+          className="transition-transform duration-150 group-hover/button:translate-x-0.5 motion-reduce:transition-none"
+        />
+      </Button>
     </>
   )
 }

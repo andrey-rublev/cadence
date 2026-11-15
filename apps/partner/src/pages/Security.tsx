@@ -1,8 +1,7 @@
 import type { ActivityRecorder } from '@cadence/sdk'
-import { ShieldCheck, ShieldOff } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { useState, type RefObject } from 'react'
 
-import { Verdict } from '@/components/Brand'
 import { PracticeSignIns } from '@/components/PracticeSignIns'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -40,53 +39,42 @@ export function Security({
     }
   }
 
+  const on = me.cadence.connected
   return (
-    <div className="grid max-w-3xl gap-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Account · {me.email}</p>
-        <h1 className="text-3xl font-semibold">Security</h1>
-      </div>
+    <div className="grid max-w-2xl gap-6">
+      <h1 className="text-2xl">Security</h1>
 
-      <section className="grid gap-4 rounded-lg border border-border bg-card p-6">
-        <div className="flex items-start gap-3">
-          {me.cadence.connected ? (
-            <ShieldCheck className="mt-1 size-6 shrink-0 text-good" aria-hidden="true" />
-          ) : (
-            <ShieldOff className="mt-1 size-6 shrink-0 text-muted-foreground" aria-hidden="true" />
-          )}
-          <div className="grid gap-1">
-            <h2 className="text-xl font-semibold">Second check with Cadence</h2>
+      <section className="grid gap-5 rounded-xl border border-border bg-card p-6">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between sm:gap-8">
+          <div className="grid gap-1.5">
+            <h2 className="flex items-center gap-2.5 text-lg">
+              Cadence
+              <span
+                className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${on ? 'bg-good/12 text-good' : 'bg-muted text-muted-foreground'}`}
+              >
+                {on ? 'On' : 'Off'}
+              </span>
+            </h2>
             <p className="text-muted-foreground">
-              {me.cadence.connected
-                ? 'On. When you sign in or export, Cadence checks whether the typing and clicking look like you. When they do, there is no extra step.'
-                : 'Off. Your account is protected by your password alone.'}
+              {on
+                ? 'Cadence checks how you type when you sign in, export, or delete your account. When it looks like you, there is no extra step.'
+                : 'Connect Cadence to protect sign-ins and exports and enable account deletion. Cadence handles your typing data.'}
             </p>
           </div>
-        </div>
-
-        {!me.cadence.connected && (
-          <ul className="grid gap-1.5 text-sm">
-            <li>• Nothing extra at sign-in when it looks like you.</li>
-            <li>• If it does not, Cadence asks you to confirm, with a quick test picked for you.</li>
-            <li>• Northwind never receives your typing data; your browser sends it to Cadence.</li>
-          </ul>
-        )}
-
-        {me.cadence.connected && <PracticeSignIns pageRecorder={pageRecorder} />}
-        {me.cadence.connected && me.sign_in_check && <Verdict check={me.sign_in_check} what="sign-in" />}
-
-        <div className="flex flex-wrap gap-2">
-          {me.cadence.connected ? (
-            <Button variant="outline" onClick={disconnect} className="h-10 px-4">
+          {on ? (
+            <Button variant="outline" onClick={disconnect} className="shrink-0">
               Turn off
             </Button>
           ) : (
-            <Button size="lg" onClick={connect} disabled={busy} className="h-11 px-5 text-base">
+            <Button size="lg" onClick={connect} disabled={busy} className="shrink-0">
               <ShieldCheck aria-hidden="true" />
               Protect with Cadence
             </Button>
           )}
         </div>
+
+        {on && <PracticeSignIns pageRecorder={pageRecorder} />}
+
         {error && (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{error}</AlertDescription>

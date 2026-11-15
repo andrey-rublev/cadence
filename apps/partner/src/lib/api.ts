@@ -27,9 +27,14 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
 const MESSAGES: Record<string, string> = {
   invalid_credentials: 'That email and password do not match a Northwind account.',
   email_taken: 'That email already has an account. Sign in instead.',
+  not_signed_in: 'Your Northwind session ended. Sign in and try again.',
   not_verified: 'Cadence has not confirmed it was you yet. Finish verifying, then try again.',
+  pending_unknown: 'This verification request is no longer active. Start again from Northwind.',
   pending_other_browser: 'Finish verifying in the same browser you started in.',
-  cadence_unreachable: 'Cadence could not be reached. Check that it is running, then try again.',
+  pending_other_user: 'Finish verifying from the Northwind account that started the request.',
+  cadence_not_connected: 'Connect Cadence in Security before deleting your account.',
+  deletion_session_changed: 'Your session or Cadence connection changed during verification. Start again from Account.',
+  cadence_unreachable: 'Cadence can’t be reached right now. Try again in a moment.',
   'cadence:subject_not_linked': 'Your Cadence connection was removed. Sign in again; you can reconnect under Security.',
   practice_wrong_credentials: 'That email or password is not right for this account. Nothing was sent to Cadence.',
   practice_no_typing: 'Cadence could not be reached, so that one was not saved. Try again.',
@@ -41,7 +46,7 @@ const MESSAGES: Record<string, string> = {
 /** What Cadence said about one practice sign-in. */
 export interface Practice {
   accepted?: boolean
-  reason?: 'did_not_match' | 'not_sign_in_length' | string | null
+  reason?: 'did_not_match' | 'too_little_typing' | string | null
   samples: number
   needed: number
   most: number
@@ -53,8 +58,12 @@ export interface Practice {
 }
 
 export function explain(error: unknown): string {
-  if (error instanceof ApiError) return MESSAGES[error.code] ?? `Something went wrong (${error.code}).`
-  return 'Northwind could not be reached. Check that it is running, then try again.'
+  if (error instanceof ApiError) {
+    if (MESSAGES[error.code]) return MESSAGES[error.code]
+    console.error('Northwind request failed:', error.code)
+    return 'Something went wrong. Try again.'
+  }
+  return 'Northwind can’t be reached right now. Try again in a moment.'
 }
 
 // ---------------------------------------------------------------- Cadence, the way a partner uses it
@@ -91,9 +100,16 @@ export interface Me {
   sign_in_check: CheckSummary | null
 }
 
+export type VerificationRequired = { status: 'verify'; pending: string; verify_url: string; check: CheckSummary }
+
 export type Gate<T> =
-  | ({ status: 'signed_in' | 'released'; check?: CheckSummary | null } & T)
-  | { status: 'verify'; pending: string; verify_url: string; check: CheckSummary }
+  | ({
+      status: 'signed_in' | 'released'
+      check?: CheckSummary | null
+      /** Exports: a recent verification covers further exports until then (epoch seconds). */
+      trusted_until?: number | null
+    } & T)
+  | VerificationRequired
 
 /**
  * Hand what this page recorded to Cadence and get an evidence token back. If Cadence cannot be

@@ -29,7 +29,7 @@ const ROUND_REJECTED: Record<string, string> = {
 const MESSAGES: Record<string, string> = {
   invalid_credentials: 'That username and password do not match an account.',
   not_signed_in: 'You have been signed out. Sign in again to continue.',
-  trusted_verification_required: 'This step needs trusted verification first. Verify another way, then try again.',
+  trusted_verification_required: 'Confirm it’s you first, then try again.',
   enrollment_session_complete: 'This sign-in has recorded all its rounds. Sign out and back in later to record another session.',
   no_rounds_left: 'There are no more rounds for this check. Verify another way to continue.',
   verification_already_resolved: 'This check has already finished. Start the export again.',
@@ -61,7 +61,9 @@ export function explain(error: unknown, overrides: Record<string, string> = {}):
       const known = ROUND_REJECTED[reason.split(':')[0]]
       return `${known ?? 'The recording was incomplete.'} Nothing was saved. Start the round again.`
     }
-    return MESSAGES[error.code] ?? `The server refused the request (${error.code}).`
+    if (MESSAGES[error.code]) return MESSAGES[error.code]
+    console.error('Cadence request failed:', error.code)
+    return 'Something went wrong. Try again.'
   }
-  return 'Could not reach the Cadence server. Check that it is running, then try again.'
+  return 'Cadence can’t be reached right now. Try again in a moment.'
 }

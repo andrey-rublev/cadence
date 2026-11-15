@@ -1,16 +1,19 @@
 import { CadenceApp } from '@/cadence/CadenceApp'
 import { ConnectPage } from '@/cadence/ConnectPage'
+import { ResultsPage } from '@/cadence/ResultsPage'
 import { VerifyPage } from '@/cadence/VerifyPage'
 import { CollectPage } from '@/collect/CollectPage'
 
 /**
  * The Cadence site. `/` is sign-in, setup and the dashboard; `/connect` and `/verify/<check>`
- * are where partner sites send people; `/collect` is volunteer data collection.
+ * are where partner sites send people; `/results` is how the models measured up; `/collect` is
+ * volunteer data collection.
  */
 export default function App() {
   const path = window.location.pathname
   if (path.startsWith('/collect')) return <CollectPage />
   if (path.startsWith('/connect')) return <ConnectPage />
+  if (path.startsWith('/results')) return <ResultsPage />
   const verify = path.match(/^\/verify\/([0-9a-f]{32})$/)
   if (verify) return <VerifyPage checkId={verify[1]} />
   return <CadenceApp />

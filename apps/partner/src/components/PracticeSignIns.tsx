@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button'
 import { api, evidenceToken, explain, recordActivity, type Practice } from '@/lib/api'
 
 const NOT_SAVED: Record<string, string> = {
-  did_not_match: 'Not saved: that typing did not look like your Cadence typing test. Type it the way you usually do.',
-  not_sign_in_length: 'Not saved: Cadence needs 12 to 45 keys in all, and that was outside it.',
+  did_not_match: 'That didn’t match your typing profile. Try again, typing the way you usually do.',
+  too_little_typing: 'Not saved. Cadence saw too little typing. Type your email and password by hand, without autofill or paste.',
 }
 
 /**
@@ -60,8 +60,8 @@ export function PracticeSignIns({ pageRecorder }: { pageRecorder: RefObject<Acti
       setStatus(out)
       setNote(
         out.accepted
-          ? { saved: true, text: `Saved: ${Math.min(out.samples, out.needed)} of ${out.needed}.` }
-          : { saved: false, text: NOT_SAVED[out.reason ?? ''] ?? `Not saved: Cadence could not check it (${out.reason}).` },
+          ? { saved: true, text: 'Saved.' }
+          : { saved: false, text: NOT_SAVED[out.reason ?? ''] ?? 'That one wasn’t saved. Try again.' },
       )
     } catch (e) {
       setNote(null)
@@ -78,55 +78,44 @@ export function PracticeSignIns({ pageRecorder }: { pageRecorder: RefObject<Acti
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     ) : (
-      <p className="text-sm text-muted-foreground">Checking with Cadence…</p>
+      <div aria-busy className="h-5 w-48 animate-pulse rounded bg-muted motion-reduce:animate-none" />
     )
 
   if (status.complete)
     return (
-      <div className="grid gap-1 rounded-lg border border-good/40 bg-good/8 p-4">
-        <p className="flex items-center gap-2 font-medium">
-          <CheckCircle2 className="size-5 text-good" aria-hidden="true" />
-          Cadence has {status.samples} of your Northwind sign-ins.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {status.compared
-            ? 'New sign-ins here are compared with these as well as with your Cadence profile.'
-            : 'With these, Cadence has enough to check your sign-ins here against your profile. Comparing new sign-ins with these samples directly stays off until it is shown to help.'}
-        </p>
-      </div>
+      <p className="flex items-center gap-2 border-t border-border pt-5">
+        <CheckCircle2 className="size-4 shrink-0 text-good" aria-hidden="true" />
+        Cadence has learned your Northwind sign-in.
+      </p>
     )
 
   if (!status.open)
     return (
-      <p className="rounded-lg border border-border p-4 text-sm">
-        Cadence is no longer taking practice sign-ins for this connection ({status.samples} of {status.needed} saved). To
-        start over, disconnect Northwind on your Cadence home page, then turn Cadence off and back on here.
+      <p className="border-t border-border pt-5 text-sm text-muted-foreground">
+        Practice has closed for this connection. To start over, disconnect Northwind in Cadence, then turn Cadence off
+        and on here.
       </p>
     )
 
   return (
-    <div className="grid gap-4 rounded-lg border border-marigold/60 bg-marigold/8 p-5">
+    <div className="grid gap-4 border-t border-border pt-5">
       <div className="grid gap-1">
-        <h3 className="text-lg font-semibold">Teach Cadence your Northwind sign-in</h3>
+        <div className="flex items-baseline justify-between gap-4">
+          <h3 className="text-base">Teach Cadence your sign-in</h3>
+          <span className="text-sm text-muted-foreground tabular-nums" role="status" aria-live="polite">
+            {status.samples} of {status.needed}
+            {status.attempts_left <= 3 && `, ${status.attempts_left} ${status.attempts_left === 1 ? 'try' : 'tries'} left`}
+          </span>
+        </div>
         <p className="text-sm text-muted-foreground">
-          Type your Northwind email and password {status.needed} times, the way you normally sign in, without autofill.
-          Northwind checks the password; Cadence only receives the timing.
+          Sign in below {status.needed} times, typing normally and without autofill. Cadence only receives the timing.
         </p>
       </div>
 
-      <div className="flex items-center gap-3" role="status" aria-live="polite">
-        <span className="flex gap-1.5" aria-hidden="true">
-          {Array.from({ length: status.needed }, (_, i) => (
-            <span
-              key={i}
-              className={`size-2.5 rounded-full ${i < status.samples ? 'bg-good' : 'border border-foreground/30 bg-card'}`}
-            />
-          ))}
-        </span>
-        <span className="text-sm">
-          {status.samples} of {status.needed} saved
-          {status.attempts_left <= 3 && ` · ${status.attempts_left} tries left`}
-        </span>
+      <div className="flex max-w-sm gap-1.5" aria-hidden="true">
+        {Array.from({ length: status.needed }, (_, i) => (
+          <span key={i} className={`h-1 flex-1 rounded-full ${i < status.samples ? 'bg-good' : 'bg-foreground/10'}`} />
+        ))}
       </div>
 
       <form ref={attach} onSubmit={submit} className="grid max-w-sm gap-4">
@@ -139,9 +128,9 @@ export function PracticeSignIns({ pageRecorder }: { pageRecorder: RefObject<Acti
           onPassword={setPassword}
           onChangeEmail={() => (setStep('email'), setPassword(''), recorder.current?.reset())}
         />
-        <Button type="submit" disabled={busy} className="h-11 justify-self-start px-5 text-base">
-          {busy && <Loader2 className="animate-spin" aria-hidden="true" />}
-          {step === 'email' ? 'Next' : 'Save this sign-in'}
+        <Button type="submit" size="lg" disabled={busy} className="justify-self-start">
+          {busy && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+          {step === 'email' ? 'Continue' : 'Save sign-in'}
         </Button>
       </form>
 

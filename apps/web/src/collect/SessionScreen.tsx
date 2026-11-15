@@ -86,10 +86,10 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
     <div className="grid gap-5">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div>
-          <p className="font-mono text-sm text-muted-foreground">
-            {status.username} · session {status.label}
+          <h1 className="text-3xl">{roundName}</h1>
+          <p className="mt-1.5 text-muted-foreground">
+            {status.username}, session {status.label}
           </p>
-          <h1 className="text-3xl font-bold sm:text-4xl">{roundName}</h1>
         </div>
         <TraceStrip traces={traces} slots={status.rounds_total + 1} />
       </div>
@@ -116,7 +116,7 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
           )
         }
       >
-        <div className="grid max-w-sm justify-items-center gap-4 rounded-xl border border-rule bg-card/95 p-6 text-center shadow-sm">
+        <div className="grid max-w-sm justify-items-center gap-4 rounded-xl border border-border bg-card/95 p-6 text-center shadow-sm">
           {lastTrace && !error && (
             <p className="text-sm text-muted-foreground">
               Behind this card are your tracks from the last round, exactly as they were recorded.
@@ -129,8 +129,8 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
           ) : (
             <p>Dig eight spots, carry three finds to the tray, then follow the tunnelling marker for six seconds. About 20 seconds.</p>
           )}
-          <Button size="lg" onClick={startRound} disabled={busy} className="h-12 px-6 text-base">
-            {busy ? 'One moment…' : `Start ${roundName.toLowerCase()}`}
+          <Button size="lg" onClick={startRound} disabled={busy}>
+            {busy ? 'One moment' : `Start ${roundName.toLowerCase()}`}
           </Button>
         </div>
       </RoundRunner>
@@ -138,7 +138,7 @@ export function SessionScreen({ status, onStatus, onExit }: SessionScreenProps) 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <p>Recorded: pointer position and clicks inside the dig site, only while a round runs.</p>
         <Button variant="link" onClick={onExit} className="h-auto p-0 text-sm text-muted-foreground underline">
-          I can't do this, or I want to stop
+          Stop this session
         </Button>
       </div>
     </div>

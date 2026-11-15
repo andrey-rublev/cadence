@@ -1,7 +1,7 @@
-import { Link2 } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { Wordmark } from '@/components/Wordmark'
+import { Shell } from '@/components/Shell'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { api, explain } from '@/lib/api'
@@ -52,71 +52,82 @@ export function ConnectPage() {
   const cancel = () => window.location.assign(`${redirectUri}?${new URLSearchParams({ error: 'cancelled', state })}`)
 
   return (
-    <div className="mx-auto grid min-h-svh w-full max-w-2xl content-start gap-8 px-5 py-6 sm:px-8 sm:py-10">
-      <header className="flex items-center justify-between gap-4">
-        <Wordmark />
-        <span className="font-mono text-sm text-muted-foreground">Connect a site</span>
-      </header>
+    <Shell width="narrow">
+      <div className="grid gap-5">
+        {error && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      {error && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+        {site && me === null && (
+          <SignInForm onSignedIn={setMe} note={<p className="text-muted-foreground">Sign in to connect {site.name}.</p>} />
+        )}
 
-      {site && me === null && (
-        <div className="grid gap-4">
-          <h1 className="text-3xl font-extrabold">Sign in to Cadence to connect {site.name}.</h1>
-          <SignInForm onSignedIn={setMe} />
-        </div>
-      )}
+        {!error && (!site || me === undefined) && (
+          <div aria-busy className="grid gap-3">
+            <span className="h-8 w-64 max-w-full animate-pulse rounded bg-muted motion-reduce:animate-none" />
+            <span className="h-4 w-80 max-w-full animate-pulse rounded bg-muted motion-reduce:animate-none" />
+          </div>
+        )}
 
-      {site && me && (
-        <main className="grid gap-6 rounded-xl border border-rule bg-card p-6 sm:p-8">
-          <div className="flex items-start gap-3">
-            <Link2 className="mt-2 size-6 shrink-0 text-primary" aria-hidden="true" />
-            <div className="grid gap-1">
-              <h1 className="text-3xl font-extrabold">{site.name} wants to use Cadence for your account.</h1>
-              <p className="text-muted-foreground">Signed in to Cadence as {me.username}.</p>
+        {site && me && (
+          <section className="grid animate-in gap-7 duration-300 fill-mode-both fade-in slide-in-from-bottom-2 motion-reduce:animate-none">
+            <div className="grid gap-3">
+              <p className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+                <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
+                Signed in as {me.username}
+              </p>
+              <h1 className="text-3xl">Connect {site.name}</h1>
+              <p className="text-muted-foreground">
+                {site.name} will ask Cadence to check that it’s you when you sign in there.
+              </p>
             </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="grid content-start gap-2 rounded-lg border border-rule p-4">
-              <p className="font-medium">{site.name} will be able to</p>
-              <ul className="grid list-disc gap-1 pl-5 text-sm">
-                <li>ask Cadence whether a sign-in or sensitive action looks like you</li>
-                <li>see the result and how sure Cadence was</li>
-              </ul>
+
+            <dl className="grid border-b border-border *:grid *:gap-x-5 *:gap-y-1 *:border-t *:border-border *:py-3.5 sm:*:grid-cols-[6.5rem_1fr]">
+              <div>
+                <dt className="font-medium">It can</dt>
+                <dd className="grid gap-1.5 text-muted-foreground">
+                  <span>Ask whether a sign-in looks like you.</span>
+                  <span>See the result of each check.</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">It never sees</dt>
+                <dd className="grid gap-1.5 text-muted-foreground">
+                  <span>Your typing or pointer data.</span>
+                  <span>Your Cadence username or password.</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">Next</dt>
+                {me.setup.complete ? (
+                  <dd className="text-muted-foreground">
+                    {site.name} asks you to type your sign-in there a few times, so Cadence can learn it.
+                  </dd>
+                ) : (
+                  <dd className="text-uncertain">
+                    Your Cadence setup isn’t finished. Until it is, {site.name} will ask you to verify another way.
+                  </dd>
+                )}
+              </div>
+            </dl>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="lg" onClick={approve} disabled={busy}>
+                Connect
+                <ArrowRight
+                  aria-hidden="true"
+                  className="transition-transform duration-150 group-hover/button:translate-x-0.5 motion-reduce:transition-none"
+                />
+              </Button>
+              <Button variant="ghost" size="lg" onClick={cancel} disabled={busy}>
+                Cancel
+              </Button>
             </div>
-            <div className="grid content-start gap-2 rounded-lg border border-rule p-4">
-              <p className="font-medium">{site.name} will not get</p>
-              <ul className="grid list-disc gap-1 pl-5 text-sm">
-                <li>your typing or pointer data: your browser sends it to Cadence directly</li>
-                <li>your Cadence username or password</li>
-              </ul>
-            </div>
-          </div>
-          {me.setup.complete ? (
-            <p className="text-sm text-muted-foreground">
-              Next, back on {site.name}, you type your {site.name} email and password a few times so Cadence learns
-              how you sign in there.
-            </p>
-          ) : (
-            <p className="rounded-lg border border-uncertain/50 bg-uncertain/8 p-4 text-sm">
-              Your Cadence setup is not finished, so until it is, {site.name} will ask you to verify another way.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button size="lg" onClick={approve} disabled={busy} className="h-11 px-5 text-base">
-              {busy ? 'Connecting…' : `Connect ${site.name}`}
-            </Button>
-            <Button variant="ghost" size="lg" onClick={cancel} className="h-11 px-5 text-base">
-              Cancel
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">You can disconnect at any time from your Cadence home page.</p>
-        </main>
-      )}
-    </div>
+          </section>
+        )}
+      </div>
+    </Shell>
   )
 }

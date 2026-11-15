@@ -28,10 +28,11 @@ OWNER = {"hold": 85, "dd": 135}
 STRANGER = {"hold": 150, "dd": 260}
 
 
-def typing(profile: dict, rng: np.random.Generator, keys: int = 50) -> list[list[float]]:
+def typing(profile: dict, rng: np.random.Generator, keys: int = 50, *, zones: list[int] | None = None) -> list[list[float]]:
     events, t = [], 0.0
+    zones = zones or ZONES
     for i in range(keys):
-        zone = ZONES[i % len(ZONES)]
+        zone = zones[i % len(zones)]
         hold = max(30.0, rng.normal(profile["hold"], 12))
         events += [[round(t, 1), 1, zone], [round(t + hold, 1), 2, zone]]
         t += max(40.0, rng.normal(profile["dd"], 25))

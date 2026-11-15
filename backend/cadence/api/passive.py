@@ -20,7 +20,7 @@ from ..core.config import settings
 from ..core.db import Db
 from ..core.models import PassiveWindow, UserSession, now
 from ..core.security import CurrentSession, require_client_header
-from ..features.keys import KEY_SCHEMA, MODIFIER, presses_from_events
+from ..features.keys import KEY_SCHEMA, MAX_ZONE, MODIFIER, presses_from_events
 from ..features.keys import window_vector as key_vector
 from ..features.strokes import K_SCHEMA, strokes
 from ..features.strokes import window_vector as stroke_vector
@@ -64,7 +64,7 @@ def check_events(modality: str, events: list[list[float]]) -> float:
         last = t
         if width == 5 and kind not in (0, 1, 2):
             raise HTTPException(422, "malformed_event")
-        if width == 3 and (kind not in (1, 2) or not 0 <= event[2] <= MODIFIER or event[2] != math.floor(event[2])):
+        if width == 3 and (kind not in (1, 2) or not 0 <= event[2] <= MAX_ZONE or event[2] != math.floor(event[2])):
             raise HTTPException(422, "malformed_event")
     return last
 
@@ -88,7 +88,7 @@ def _validate(body: PassiveBody) -> None:
         last = t
         if width == 5 and kind not in (0, 1, 2):
             raise HTTPException(422, "malformed_event")
-        if width == 3 and (kind not in (1, 2) or not 0 <= event[2] <= MODIFIER or event[2] != math.floor(event[2])):
+        if width == 3 and (kind not in (1, 2) or not 0 <= event[2] <= MAX_ZONE or event[2] != math.floor(event[2])):
             raise HTTPException(422, "malformed_event")
     if abs(last - body.duration_ms) > 1:
         raise HTTPException(422, "duration_mismatch")

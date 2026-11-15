@@ -36,31 +36,42 @@ interface PassiveModelSummary {
 
 type Summaries = Record<Modality, PassiveModelSummary | null> & { login?: PassiveModelSummary | null }
 
-/** The model for the short, partly hidden typing of a sign-in on a partner site. */
-function LoginSection({ summary }: { summary: PassiveModelSummary }) {
+function Limitations({ lines }: { lines: string[] }) {
   return (
-    <div className="grid gap-3">
-      <h3 className="font-semibold">Typing at sign-in</h3>
-      <p className="font-mono text-sm text-muted-foreground">
-        {summary.selected.name} · {summary.version} · {summary.participants.total} people from Aalto 136M Keystrokes ·
-        one sign-in is {summary.probe_keys?.[0]}–{summary.probe_keys?.[1]} keys, password part timing only
-      </p>
-      <Comparison models={summary.models} selected={summary.selected.id} sample="sign-in" />
-      {summary.by_keys && (
-        <ul className="grid gap-1 text-sm">
-          {summary.by_keys.map((band) => (
-            <li key={band.keys.join('-')}>
-              {band.keys[0]}–{band.keys[1]} keys: AUC {decimal(band.auc.value)}, equal error {percent(band.eer.value)}
-            </li>
-          ))}
-        </ul>
-      )}
-      <ul className="grid list-disc gap-1 rounded-lg border border-uncertain/50 bg-uncertain/8 p-4 pl-8 text-sm" role="note">
-        {summary.limitations.map((line) => (
+    <div className="grid gap-1.5 text-sm text-muted-foreground">
+      <p className="font-medium text-foreground">Limitations</p>
+      <ul className="grid list-disc gap-1 pl-5">
+        {lines.map((line) => (
           <li key={line}>{line}</li>
         ))}
       </ul>
     </div>
+  )
+}
+
+/** The model for the short, partly hidden typing of a sign-in on a partner site. */
+function LoginSection({ summary }: { summary: PassiveModelSummary }) {
+  return (
+    <section className="grid gap-4">
+      <div className="grid gap-1">
+        <h2 className="text-lg">Typing at sign-in</h2>
+        <p className="text-sm text-muted-foreground">
+          {summary.selected.name}, tested on {summary.participants.total} people from Aalto 136M Keystrokes. One sign-in
+          is {summary.probe_keys?.[0]} to {summary.probe_keys?.[1]} keys, with the password part as timing only.
+        </p>
+      </div>
+      <Comparison models={summary.models} selected={summary.selected.id} sample="sign-in" />
+      {summary.by_keys && (
+        <ul className="grid gap-1 text-sm text-muted-foreground">
+          {summary.by_keys.map((band) => (
+            <li key={band.keys.join('-')}>
+              {band.keys[0]} to {band.keys[1]} keys: AUC {decimal(band.auc.value)}, equal error {percent(band.eer.value)}
+            </li>
+          ))}
+        </ul>
+      )}
+      <Limitations lines={summary.limitations} />
+    </section>
   )
 }
 
@@ -98,19 +109,10 @@ const DATASET: Record<Modality, { name: string; unit: string; credit: ReactNode 
   },
 }
 
-export function Card({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="grid content-start gap-4 rounded-xl border border-rule bg-card p-6">
-      <h2 className="text-xl font-bold">{title}</h2>
-      {children}
-    </section>
-  )
-}
-
 const percent = (x: number | null) => (x === null ? 'n/a' : `${Math.round(x * 100)}%`)
 const decimal = (x: number | null) => (x === null ? 'n/a' : x.toFixed(2))
 
-/** "0.84 0.80–0.88" with a bar showing where the range sits between 0 and 1. */
+/** "0.84 0.80 to 0.88" with a bar showing where the range sits between 0 and 1. */
 function Ranged({ interval, format }: { interval: Interval; format: (x: number | null) => string }) {
   const { value, low, high } = interval
   return (
@@ -119,7 +121,7 @@ function Ranged({ interval, format }: { interval: Interval; format: (x: number |
         <span className="font-mono">{format(value)}</span>{' '}
         {low !== null && high !== null && (
           <span className="font-mono text-xs text-muted-foreground">
-            {format(low)}–{format(high)}
+            {format(low)} to {format(high)}
           </span>
         )}
       </span>
@@ -138,7 +140,7 @@ function Ranged({ interval, format }: { interval: Interval; format: (x: number |
 
 function Comparison({ models, selected, sample }: { models: ModelResult[]; selected?: string; sample: string }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table className="min-w-[600px]">
         <caption className="sr-only">Held-out results for each candidate model, with 95% ranges</caption>
         <TableHeader>
@@ -152,11 +154,11 @@ function Comparison({ models, selected, sample }: { models: ModelResult[]; selec
         </TableHeader>
         <TableBody>
           {models.map((m) => (
-            <TableRow key={m.id} className={m.id === selected ? 'bg-muted/60' : undefined}>
+            <TableRow key={m.id} className={m.id === selected ? 'bg-muted/40' : undefined}>
               <TableCell className="align-top">
-                <span className="font-semibold">{m.name}</span>
+                <span className="font-medium">{m.name}</span>
                 {m.id === selected && (
-                  <span className="ml-2 rounded-sm border border-foreground/40 px-1.5 py-0.5 text-xs">in use</span>
+                  <span className="ml-2 rounded-md bg-accent px-1.5 py-0.5 text-xs font-medium text-accent-foreground">In use</span>
                 )}
               </TableCell>
               <TableCell className="align-top">
@@ -183,56 +185,45 @@ function ModelSection({ modality, summary }: { modality: Modality; summary: Pass
   const dataset = DATASET[modality]
   if (!summary) {
     return (
-      <div className="grid gap-1">
-        <h3 className="font-semibold">{MODALITY_LABEL[modality]}</h3>
-        <p className="text-muted-foreground">
-          No model installed, so this input cannot be checked. The other input, or trusted verification, still works.
-        </p>
-      </div>
+      <section className="grid gap-1">
+        <h2 className="text-lg">{MODALITY_LABEL[modality]}</h2>
+        <p className="text-muted-foreground">No model is installed, so this input can’t be checked.</p>
+      </section>
     )
   }
   return (
-    <div className="grid gap-3">
-      <h3 className="font-semibold">{MODALITY_LABEL[modality]}</h3>
-      <p className="font-mono text-sm text-muted-foreground">
-        {summary.selected.name} · {summary.version} · {summary.participants.total} people from {dataset.name} · one
-        sample is {summary.window} {dataset.unit}
-      </p>
+    <section className="grid gap-4">
+      <div className="grid gap-1">
+        <h2 className="text-lg">{MODALITY_LABEL[modality]}</h2>
+        <p className="text-sm text-muted-foreground">
+          {summary.selected.name}, tested on {summary.participants.total} people from {dataset.name}. One sample is{' '}
+          {summary.window} {dataset.unit}.
+        </p>
+      </div>
       <Comparison models={summary.models} selected={summary.selected.id} sample="sample" />
       <p className="text-sm text-muted-foreground">{summary.selected.reason}</p>
-      <ul className="grid list-disc gap-1 rounded-lg border border-uncertain/50 bg-uncertain/8 p-4 pl-8 text-sm" role="note">
-        {summary.limitations.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
-      <p className="text-xs text-muted-foreground">{dataset.credit}</p>
-    </div>
+      <Limitations lines={summary.limitations} />
+      <p className="text-sm text-muted-foreground">{dataset.credit}</p>
+    </section>
   )
 }
 
 /** The passive models and how they did on people they never saw, straight from their eval summaries. */
-export function PassiveModelsCard() {
+export function ModelResults() {
   const [models, setModels] = useState<Summaries | null | undefined>(undefined)
   useEffect(() => {
     api.request<Summaries>('GET', '/passive/models').then(setModels, () => setModels(null))
   }, [])
 
+  if (models === undefined) {
+    return <div aria-busy className="h-40 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" />
+  }
+  if (models === null) return <p className="text-muted-foreground">The results could not be loaded.</p>
   return (
-    <Card title="Models and measured results">
-      {models === undefined && <p className="text-muted-foreground">Loading…</p>}
-      {models === null && <p className="text-muted-foreground">Could not load the model summaries.</p>}
-      {models && (
-        <>
-          <p className="text-muted-foreground">
-            Every model was trained on a public research dataset and tested on people it never saw. Ranges are 95%
-            intervals from resampling people. None has been calibrated on people using Cadence yet.
-          </p>
-          <ModelSection modality="keys" summary={models.keys} />
-          {models.login && <LoginSection summary={models.login} />}
-          <ModelSection modality="pointer" summary={models.pointer} />
-        </>
-      )}
-    </Card>
+    <div className="grid gap-12">
+      <ModelSection modality="keys" summary={models.keys} />
+      {models.login && <LoginSection summary={models.login} />}
+      <ModelSection modality="pointer" summary={models.pointer} />
+    </div>
   )
 }
-

@@ -1,15 +1,15 @@
-import { ShieldCheck } from 'lucide-react'
+import { ShieldAlert, ShieldCheck } from 'lucide-react'
 
 import type { CheckSummary } from '@/lib/api'
 
-export function Logo({ inverted = false }: { inverted?: boolean }) {
+export function Logo({ inverted = false, compact = false }: { inverted?: boolean; compact?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <svg viewBox="0 0 32 32" className="size-8" aria-hidden="true">
+    <span className="inline-flex shrink-0 items-center gap-2.5" aria-label="Northwind CRM">
+      <svg viewBox="0 0 32 32" className="size-7" aria-hidden="true">
         <rect width="32" height="32" rx="7" fill={inverted ? '#ffffff14' : '#0f3b3a'} />
         <path d="M9 23V9l14 14V9" fill="none" stroke="#f0b450" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="font-heading text-lg font-semibold tracking-tight">
+      <span className={`text-base font-semibold tracking-tight whitespace-nowrap ${compact ? 'hidden sm:inline' : ''}`}>
         Northwind <span className="font-normal opacity-70">CRM</span>
       </span>
     </span>
@@ -26,41 +26,32 @@ export function CadenceBadge({ className = '' }: { className?: string }) {
   )
 }
 
-const OUTCOME: Record<CheckSummary['outcome'], string> = {
-  CONSISTENT: 'looked like you',
-  UNCERTAIN: 'was a close call',
-  INCONSISTENT: 'did not look like you',
-  INSUFFICIENT_EVIDENCE: 'had too little typing or clicking to check',
+const OUTCOME: Record<CheckSummary['outcome'], (what: string) => string> = {
+  CONSISTENT: (what) => `Cadence verified this ${what}.`,
+  UNCERTAIN: (what) => `Cadence wasn’t sure about this ${what}.`,
+  INCONSISTENT: (what) => `This ${what} didn’t look like you.`,
+  INSUFFICIENT_EVIDENCE: (what) => `There was too little typing to check this ${what}.`,
 }
 
 const RESOLVED: Record<NonNullable<CheckSummary['resolved_by']>, string> = {
   behavior: 'No extra step was needed.',
   test: 'You confirmed it with a quick test.',
-  fallback: 'You confirmed it with the authenticator.',
+  fallback: 'You confirmed it with a code.',
 }
 
-/** What Cadence told Northwind about a check: outcome and how sure, never the raw data. */
+/** What Cadence told Northwind about a check: the outcome and how it was settled. */
 export function Verdict({ check, what }: { check: CheckSummary; what: string }) {
-  const scored = check.parts.filter((p) => p.score !== null)
+  const Icon = check.outcome === 'CONSISTENT' ? ShieldCheck : ShieldAlert
   return (
-    <p className="text-sm">
-      <span className="font-medium">Cadence:</span> this {what} {OUTCOME[check.outcome]}
-      {scored.length > 0 && (
-        <span className="text-muted-foreground">
-          {' '}
-          (
-          {scored
-            .map(
-              (p) =>
-                `${p.modality === 'keys' ? `typing, ${p.amount} keys` : `clicks, ${p.amount}`}` +
-                (p.earlier_sign_ins ? `, also against ${p.earlier_sign_ins} earlier sign-ins` : '') +
-                `: ${p.score?.toFixed(2)} vs pass mark ${p.accept_at?.toFixed(2)}`,
-            )
-            .join('; ')}
-          )
-        </span>
-      )}
-      . {check.resolved_by ? RESOLVED[check.resolved_by] : ''}
+    <p className="flex items-start gap-2.5">
+      <Icon
+        className={`mt-0.5 size-4 shrink-0 ${check.outcome === 'CONSISTENT' ? 'text-good' : 'text-unsure'}`}
+        aria-hidden="true"
+      />
+      <span>
+        <span className="font-medium">{OUTCOME[check.outcome](what)}</span>{' '}
+        {check.resolved_by && <span className="text-muted-foreground">{RESOLVED[check.resolved_by]}</span>}
+      </span>
     </p>
   )
 }

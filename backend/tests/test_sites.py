@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from cadence.core.config import settings
 from cadence.core.db import SessionLocal
-from cadence.features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA, presses_from_events, window_vector
+from cadence.features.keys import KEY_FEATURE_NAMES, KEY_SCHEMA, presses_from_events, window_vector, zone_of_code
 from cadence.main import app
 from cadence.verifier.artifact import Model, load_active, save
 from cadence.verifier.baseline import Baseline
@@ -115,6 +115,22 @@ def test_sign_in_length_typing_uses_the_login_model(site):
     result = check(subject, evidence(typing(OWNER, rng, keys=25)).json()["token"])
     keys = next(p for p in result["parts"] if p["modality"] == "keys")
     assert keys["use"] == "login" and keys["amount"] == 25 and keys["score"] is not None
+
+
+def test_delete_can_be_verified_from_the_two_word_confirmation(site):
+    rng = np.random.default_rng(16)
+    subject = link(owner_with_profile(rng))
+    zones = [zone_of_code("Space" if char == " " else f"Key{char.upper()}") for char in "delete northwind"]
+
+    full_phrase = evidence(typing(OWNER, rng, keys=len(zones), zones=zones)).json()["token"]
+    result = check(subject, full_phrase, action="delete_account")
+    keys = next(p for p in result["parts"] if p["modality"] == "keys")
+    assert keys["use"] == "login" and keys["amount"] == len(zones)
+    assert result["resolved_by"] == "behavior" and result["verify_url"] is None
+
+    first_word = evidence(typing(OWNER, rng, keys=6, zones=zones)).json()["token"]
+    result = check(subject, first_word, action="delete_account")
+    assert result["outcome"] == "INSUFFICIENT_EVIDENCE" and result["verify_url"]
 
 
 def test_a_stranger_is_sent_to_verify_and_a_personal_test_can_clear_the_owner(site):
@@ -246,6 +262,17 @@ def practice(subject: str, events: list) -> TestClient:
     return TestClient(app).post("/v1/sign-in-samples", json={"subject": subject, "evidence": token}, headers=SECRET)
 
 
+def test_a_practice_sign_in_past_the_login_models_length_is_still_a_sign_in(history):
+    """A long email and password, or a few corrections, is more keys than the login model takes."""
+    rng = np.random.default_rng(19)
+    client = owner_with_profile(rng)
+    subject = link(client)
+    added = practice(subject, typing(OWNER, rng, keys=settings.long_window_keys + 1)).json()
+    assert added["accepted"] is True and added["samples"] == 1
+    turned = practice(subject, typing(STRANGER, rng, keys=settings.long_window_keys + 1)).json()
+    assert turned["accepted"] is False and turned["reason"] == "did_not_match" and turned["samples"] == 1
+
+
 def test_practice_sign_ins_after_connecting_teach_this_sites_sign_in(history, monkeypatch):
     rng = np.random.default_rng(18)
     client = owner_with_profile(rng)
@@ -256,7 +283,7 @@ def test_practice_sign_ins_after_connecting_teach_this_sites_sign_in(history, mo
     # Someone else typing the password is turned away, and it still uses up an attempt.
     turned = practice(subject, typing(STRANGER, rng, keys=30)).json()
     assert turned["accepted"] is False and turned["reason"] == "did_not_match" and turned["samples"] == 0
-    assert practice(subject, typing(OWNER, rng, keys=8)).json()["reason"] == "not_sign_in_length"
+    assert practice(subject, typing(OWNER, rng, keys=8)).json()["reason"] == "too_little_typing"
 
     for n in range(settings.history_min_sign_ins):
         added = practice(subject, typing(OWNER, rng, keys=30)).json()

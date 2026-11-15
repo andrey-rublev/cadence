@@ -69,24 +69,23 @@ export function TypingSession({ status, onStatus, onExit }: TypingSessionProps) 
     <div className="grid gap-6">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div>
-          <p className="font-mono text-sm text-muted-foreground">
-            {status.username} · session {status.label}
+          <h1 className="text-3xl">Type a few answers</h1>
+          <p className="mt-1.5 text-muted-foreground">
+            {status.username}, session {status.label}
           </p>
-          <h1 className="text-3xl font-bold sm:text-4xl">Type a few answers</h1>
         </div>
         <div className="grid w-full max-w-xs gap-3">
-          <Meter label="Samples recorded" value={status.typing_done} total={status.typing_total} />
-          <Meter label="Keys towards the next sample" value={keys} total={KEYS_PER_WINDOW} />
+          <Meter label="Progress" value={status.typing_done * KEYS_PER_WINDOW + Math.min(keys, KEYS_PER_WINDOW)} total={status.typing_total * KEYS_PER_WINDOW} />
         </div>
       </div>
 
-      <div ref={area} className="grid gap-4 rounded-xl border border-rule bg-card p-6 sm:p-8">
+      <div ref={area} className="grid gap-4 rounded-xl border border-border bg-card p-6 sm:p-7">
         <div className="grid gap-2">
-          <Label htmlFor="answer" className="text-xl font-semibold">
+          <Label htmlFor="answer" className="text-lg leading-snug font-semibold">
             {PROMPTS[prompt]}
           </Label>
           <p className="text-sm text-muted-foreground">
-            Type the way you normally would, mistakes and all. A few sentences per prompt, then move on.
+            A few sentences, typed the way you normally would.
           </p>
         </div>
         <Textarea
@@ -97,14 +96,12 @@ export function TypingSession({ status, onStatus, onExit }: TypingSessionProps) 
           autoFocus
           spellCheck={false}
           autoComplete="off"
-          className="text-lg"
         />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-md text-sm text-muted-foreground">
-            What you type is never sent or saved. Cadence records when each key goes down and up and which part of the
-            keyboard it is on. Please still avoid anything private.
+            Only key timing is recorded, never the text. Please still avoid anything private.
           </p>
-          <Button variant="outline" onClick={nextPrompt} className="h-11 px-4 text-base">
+          <Button variant="outline" onClick={nextPrompt}>
             Another prompt
             <ArrowRight aria-hidden="true" />
           </Button>
@@ -118,7 +115,7 @@ export function TypingSession({ status, onStatus, onExit }: TypingSessionProps) 
 
       <div className="flex justify-end">
         <Button variant="link" onClick={onExit} className="h-auto p-0 text-sm text-muted-foreground underline">
-          I can't do this, or I want to stop
+          Stop this session
         </Button>
       </div>
     </div>

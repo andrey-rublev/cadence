@@ -3,7 +3,8 @@
 The browser reduces every physical key to a coarse zone (which hand and which keyboard row,
 or space / backspace / enter / modifier) before anything leaves the page, so a recording
 cannot be turned back into text. Inside password fields even the zone is dropped and only
-timing is kept. Features are timings between and within presses, grouped by those zones.
+timing is kept: those presses arrive as SECRET, which these features treat like any key whose
+zone is unknown (see rhythm.py for how they are compared between sign-ins). Features are timings between and within presses, grouped by those zones.
 
 A press is (t_down_ms, t_up_ms, zone).
 """
@@ -18,9 +19,10 @@ PAUSE_MS = 1500  # a gap this long ends a burst of typing and is counted as a pa
 ZONE_NAMES = (
     "hidden", "left-number", "left-top", "left-home", "left-bottom",
     "right-number", "right-top", "right-home", "right-bottom",
-    "space", "backspace", "enter", "modifier",
+    "space", "backspace", "enter", "modifier", "secret",
 )  # fmt: skip
-HIDDEN, SPACE, BACKSPACE, ENTER, MODIFIER = 0, 9, 10, 11, 12
+HIDDEN, SPACE, BACKSPACE, ENTER, MODIFIER, SECRET = 0, 9, 10, 11, 12, 13
+MAX_ZONE = SECRET
 LEFT, RIGHT = frozenset({1, 2, 3, 4}), frozenset({5, 6, 7, 8})
 
 _ROWS = {

@@ -5,16 +5,15 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { api, explain } from '@/lib/api'
 import type { Me } from '@/lib/product'
-import { Card } from '@/product/EvidenceCards'
 import { FallbackPanel } from '@/product/FallbackPanel'
 
-/** Consent, raw-data opt-in and deleting everything. Deleting needs trusted verification. */
+/** Consent and deleting everything. Deleting needs trusted verification. */
 export function DataControls({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const save = (agree: boolean, keepRaw: boolean) =>
-    api.request<Me>('POST', '/consent', { agree, keep_raw: keepRaw }).then(onMe, (e) => setError(explain(e)))
+  const save = (agree: boolean) =>
+    api.request<Me>('POST', '/consent', { agree, keep_raw: false }).then(onMe, (e) => setError(explain(e)))
 
   async function remove() {
     setError(null)
@@ -27,53 +26,60 @@ export function DataControls({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   }
 
   return (
-    <Card title="Consent and your data">
-      <label className="flex cursor-pointer items-start gap-3">
-        <Checkbox checked={me.consent} onCheckedChange={(v) => save(v === true, me.keep_raw)} className="mt-1" />
-        <span>
-          Record the timing of my typing and how I move the pointer on Cadence and on sites I connect, and use them to
-          check sign-ins and sensitive actions there.
-        </span>
-      </label>
-      <label className={`flex items-start gap-3 ${me.consent ? 'cursor-pointer' : 'opacity-60'}`}>
-        <Checkbox checked={me.keep_raw} disabled={!me.consent} onCheckedChange={(v) => save(true, v === true)} className="mt-1" />
-        <span>Also keep the raw timing and pointer paths from Cadence pages, to help debug and retrain the model. Off by default.</span>
-      </label>
-      <p className="text-sm text-muted-foreground">
-        Stored by default: measurements only, such as key hold times, gaps between keys and how straight a pointer path
-        was. Never recorded: what you type, which keys of a password you press (only their timing), or anything outside
-        those pages. Kept for {me.retention_days} days at most.
-      </p>
+    <section className="grid gap-3">
+      <h2 className="text-lg">Privacy</h2>
+      <div className="divide-y divide-border rounded-xl border border-border bg-card">
+        <label className="flex cursor-pointer items-start gap-3 px-5 py-4">
+          <Checkbox checked={me.consent} onCheckedChange={(v) => save(v === true)} className="mt-0.5" />
+          <span className="grid gap-0.5">
+            <span className="font-medium">Record my key timing and pointer movement</span>
+            <span className="text-sm text-muted-foreground">
+              Used to check sign-ins and sensitive actions on Cadence and on sites you connect.
+            </span>
+          </span>
+        </label>
 
-      <div className="grid gap-3 border-t border-rule pt-4">
-        {!confirming ? (
-          <Button variant="outline" onClick={() => setConfirming(true)} className="h-10 justify-self-start px-4 text-base">
-            Delete my profile and recordings
-          </Button>
-        ) : me.trusted ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="mr-2">
-              This removes the profile, every stored sample and every connected site. It cannot be undone.
-            </p>
-            <Button variant="destructive" onClick={remove} className="h-10 px-4 text-base">
-              Delete profile
-            </Button>
-            <Button variant="ghost" onClick={() => setConfirming(false)} className="h-10 px-4 text-base">
-              Keep it
-            </Button>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            <p>Deleting the profile needs trusted verification, so nobody else can remove your protection.</p>
-            <FallbackPanel onVerified={({ me: updated }) => onMe(updated)} />
-          </div>
-        )}
-        {error && (
-          <Alert variant="destructive" role="alert">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        <div className="grid gap-4 px-5 py-4">
+          {!confirming ? (
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+              <p className="text-sm text-muted-foreground">
+                Cadence keeps your profile’s timing measurements until you delete it, and everything else for up to{' '}
+                {me.retention_days} days. Never what you type.
+              </p>
+              <Button variant="destructive" onClick={() => setConfirming(true)} className="shrink-0">
+                Delete profile
+              </Button>
+            </div>
+          ) : me.trusted ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p>This removes your profile, every sample and every connected site. It can’t be undone.</p>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setConfirming(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={remove}>
+                  Delete profile
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p>Confirm it’s you before deleting your profile.</p>
+                <Button variant="ghost" onClick={() => setConfirming(false)}>
+                  Cancel
+                </Button>
+              </div>
+              <FallbackPanel onVerified={({ me: updated }) => onMe(updated)} />
+            </div>
+          )}
+          {error && (
+            <Alert variant="destructive" role="alert">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
       </div>
-    </Card>
+    </section>
   )
 }

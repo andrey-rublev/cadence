@@ -1,5 +1,3 @@
-import { ArrowLeft } from 'lucide-react'
-
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -31,8 +29,8 @@ export function SignInFields({
 }) {
   if (step === 'email')
     return (
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${id}-email`}>Work email</Label>
+      <div className="grid gap-2">
+        <Label htmlFor={`${id}-email`}>Email</Label>
         <Input
           id={`${id}-email`}
           type="email"
@@ -41,28 +39,26 @@ export function SignInFields({
           autoComplete="username"
           autoFocus
           required
-          className="h-11 text-base"
         />
       </div>
     )
   return (
     <>
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
+      <div className="flex h-10 items-center justify-between gap-3 rounded-lg bg-muted px-3">
         <span className="truncate text-sm" aria-label="Signing in as">
           {email}
         </span>
         <button
           type="button"
           onClick={onChangeEmail}
-          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded text-sm font-medium underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="shrink-0 cursor-pointer rounded text-sm font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <ArrowLeft className="size-3.5" aria-hidden="true" />
           Change
         </button>
       </div>
       {/* Kept for password managers, which pair a password with the username on the same form. */}
       <input type="email" name="username" value={email} autoComplete="username" readOnly hidden />
-      <div className="grid gap-1.5">
+      <div className="grid gap-2">
         <Label htmlFor={`${id}-password`}>Password</Label>
         <Input
           id={`${id}-password`}
@@ -73,7 +69,6 @@ export function SignInFields({
           autoFocus
           required
           minLength={8}
-          className="h-11 text-base"
         />
       </div>
     </>

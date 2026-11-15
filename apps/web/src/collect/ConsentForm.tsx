@@ -18,7 +18,7 @@ const DEVICES = [
 
 function Choice({ value, label }: { value: string; label: string }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-base has-data-checked:border-primary has-data-checked:bg-accent">
+    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 has-data-checked:border-primary has-data-checked:bg-accent">
       <RadioGroupItem value={value} />
       {label}
     </label>
@@ -63,7 +63,7 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-6 rounded-xl border border-rule bg-card p-6 sm:p-8">
+    <form onSubmit={submit} className="grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-7">
       <fieldset>
         <legend className="mb-2.5 font-medium">Have you done a session before?</legend>
         <RadioGroup value={returning} onValueChange={(v) => setReturning(v as string)} className="grid grid-cols-2 gap-2.5">
@@ -85,7 +85,6 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
           required
           minLength={3}
           maxLength={24}
-          className="h-11 font-mono text-lg"
         />
       </div>
 
@@ -108,7 +107,6 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
           required
           maxLength={40}
           autoComplete="off"
-          className="h-10"
         />
       </div>
 
@@ -135,8 +133,8 @@ export function ConsentForm({ onStarted }: { onStarted: (status: CollectStatus) 
           You will type short answers for about three minutes. We record when each key goes down and up and which
           part of the keyboard it is on, never the text, for training and testing.
         </p>
-        <Button type="submit" size="lg" disabled={busy} aria-describedby="collection-consent" className="h-12 text-base">
-          {busy ? 'Starting…' : 'Agree and start session'}
+        <Button type="submit" size="lg" disabled={busy} aria-describedby="collection-consent">
+          {busy ? 'Starting' : 'Agree and start'}
         </Button>
       </div>
     </form>

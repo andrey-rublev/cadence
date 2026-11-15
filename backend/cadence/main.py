@@ -1,12 +1,31 @@
-from contextlib import asynccontextmanager
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from . import retention
 from .api import actions, auth, challenges, collect, passive, sites
 from .core.config import settings
 from .core.db import SessionLocal, init_db
+
+log = logging.getLogger("cadence")
+
+
+def _apply_retention() -> None:
+    with SessionLocal() as db:
+        retention.purge(db)
+
+
+async def _retention_loop() -> None:
+    while True:
+        await asyncio.sleep(settings.retention_sweep_s)
+        try:
+            await asyncio.to_thread(_apply_retention)
+        except Exception:
+            log.exception("retention purge failed")
 
 
 @asynccontextmanager
@@ -14,7 +33,12 @@ async def lifespan(_app: FastAPI):
     init_db()
     with SessionLocal() as db:
         sites.register_demo_site(db)
+    _apply_retention()  # once before serving, then on a timer
+    sweeper = asyncio.create_task(_retention_loop())
     yield
+    sweeper.cancel()
+    with suppress(asyncio.CancelledError):
+        await sweeper
 
 
 app = FastAPI(title="Cadence", lifespan=lifespan)

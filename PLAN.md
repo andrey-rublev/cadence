@@ -291,7 +291,7 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [x] B — SapiMouse import and experiments (`scripts/sapimouse.py`, reads the zip in `data/external/sapimouse/` directly; download it from the dataset page)
 - [x] B — Geometry-free stroke features, block K (`features/strokes.py`), shared by SapiMouse, volunteers and future passive capture
 - [ ] A+B — **Pilot: both builders run one collection session on each laptop with a real mouse and a trackpad; fix anything odd; then freeze spec v1**
-- [ ] A+B — Delete-by-username script for volunteer recordings (promised on the consent screen), and the 30-day purge
+- [ ] A+B — Delete-by-username script for volunteer recordings (promised on the consent screen)
 - [ ] B — Export script: merge laptops by username, flag near-duplicate usernames, report the gap between each person's sessions
 
 ### Gate 2 — Tier 1 end to end (target: Sun 4:30 AM)
@@ -308,7 +308,7 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [ ] B — Recruit and run 20+ volunteers (sessions A and B; ≥5 with session C on a second device). **In progress**
 - [x] B — **Real model trained** on both laptops (Sat 6:20 PM, 10 volunteers, 8 with a session on each laptop, 107 rounds). Retrain whenever new snapshots land in `data/collected/`; the numbers below change with every person added. Until a model is activated on a machine, every check there answers "Not enough evidence"
 - [x] B — Pairwise verifiers on volunteers, compared against B0 (`verifier/pairwise.py`): M1 logistic regression and M2 gradient boosting on per-feature gaps, cross-session positives only. SapiMouse-pretrained block-K variants were tested too and do not transfer (see results below)
-- [ ] A — Retention purge job (the 30-day limit is stated in the UI but nothing deletes old rows yet)
+- [x] A — Retention purge (`retention.py`, on API start-up and hourly): the profile (`enroll`, `login`, `signin` windows and enrollment rounds) stays until deleted; evidence windows, raw recordings, verifications, site checks and expired codes, tokens, grants and challenges go after 30 days. Volunteer recordings are not touched
 - [ ] A — Capture SDK passive in-app windows with a start/stop control (`createCadence`)
 
 ### Gate 3 — evaluation and hardening (target: Sun 8:30 AM)

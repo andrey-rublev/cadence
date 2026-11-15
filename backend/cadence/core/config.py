@@ -77,7 +77,9 @@ class Settings(BaseSettings):
     history_min_sign_ins: int = 3
     history_max_sign_ins: int = 5
 
+    # The profile is kept until it is deleted; everything else goes after this (see retention.py).
     retention_days: int = 30
+    retention_sweep_s: int = 3600  # how often the running API applies it
     max_body_bytes: int = 4_000_000
 
 
