@@ -34,7 +34,8 @@ STRANGER = SyntheticProfile(
 
 @pytest.fixture(scope="module")
 def synthetic_model(tmp_path_factory):
-    model, _ = train(synthetic_rounds(25, seed=3), "synthetic")
+    # B0 only and a short bootstrap: these tests are about the API, not model selection.
+    model, _ = train(synthetic_rounds(25, seed=3), "synthetic", candidates=("b0",), reps=50)
     assert model is not None
     directory = tmp_path_factory.mktemp("models")
     save(directory / model.version, model)

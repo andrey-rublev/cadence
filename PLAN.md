@@ -285,7 +285,7 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [x] B — Synthetic player (`backend/cadence/synthetic.py`), used by tests; labelled synthetic
 - [ ] B — Synthetic fixture files for the training pipeline (`scripts/make_synthetic.py`)
 - [ ] B — Resampling, stroke segmentation, kinematic features (block K) in `backend/cadence/features/`
-- [ ] B — Baseline B0 and evaluation harness (FAR, FRR, EER, AUC, participant bootstrap)
+- [x] B — Baseline B0 and evaluation harness (`verifier/evaluation.py`): participant-held-out scores (leave-pair-out up to 16 people, 5 grouped folds above), nested thresholds, the product policy replayed on held-out attempts, 95% participant-bootstrap intervals, same-station vs other-station breakdown
 - [ ] B — SapiMouse import script
 - [ ] A+B — **Pilot: both builders run one collection session on each laptop with a real mouse and a trackpad; fix anything odd; then freeze spec v1**
 - [ ] A+B — Delete-by-username script for volunteer recordings (promised on the consent screen), and the 30-day purge
@@ -303,14 +303,23 @@ This applies to both builders and to any AI assistant working in the repo. Do it
 - [x] A+B — Model artifact loaded by the backend; scoring wired into policy
 - [x] A — End-to-end browser run in a sandbox: an owner enrolled over two sign-ins was accepted and exported; a different movement style was held; a direct API export without a grant returned 403; the fallback released it
 - [ ] B — Recruit and run 20+ volunteers (sessions A and B; ≥5 with session C on a second device). **In progress**
-- [ ] B — **Train the real model once volunteers are in:** `cd backend && uv run python scripts/train.py --db <laptop1.db> --db <laptop2.db>`. Until then the server has no model and every check answers "Not enough evidence"
-- [ ] B — Pairwise verifier M1, trained on SapiMouse and volunteers, compared against B0
+- [x] B — **Real model trained** on both laptops (Sat 6:20 PM, 10 volunteers, 8 with a session on each laptop, 107 rounds). Retrain whenever new snapshots land in `data/collected/`; the numbers below change with every person added. Until a model is activated on a machine, every check there answers "Not enough evidence"
+- [~] B — Pairwise verifiers on volunteers, compared against B0 (`verifier/pairwise.py`): M1 logistic regression and M2 gradient boosting on per-feature gaps, cross-session positives only. Still to do: the SapiMouse-pretrained kinematic variant
 - [ ] A — Retention purge job (the 30-day limit is stated in the UI but nothing deletes old rows yet)
 - [ ] A — Capture SDK passive in-app windows with a start/stop control (`createCadence`)
 
 ### Gate 3 — evaluation and hardening (target: Sun 8:30 AM)
-- [ ] B — `eval.json`: baseline vs models, counts, CIs, same-device and cross-device breakdowns
-- [~] A — Evaluation view: the Movement profile page shows the active model's `eval.json` (counts, error rates, limitations) and the account's recent checks. Still missing: baseline-vs-model comparison, confidence intervals, device breakdowns
+- [x] B — `eval.json`: baseline vs models, counts, CIs, same-station and cross-laptop breakdowns
+- [x] A — Evaluation view: the Movement profile page shows what checks decided for unseen people (with ranges), B0 vs M1 vs M2, the station breakdown, limitations and the protocol, all read from `eval.json`; reviewed at desktop and 390 px
+
+#### Latest held-out results (Sat 6:20 PM, 10 people, 8 with two sessions)
+| Model | AUC, 1 round | AUC, 3 rounds | Equal error, 1 round |
+|---|---|---|---|
+| B0 distance (in use) | 0.80 (0.66–0.92) | 0.82 (0.64–0.95) | 26% (13–37%) |
+| M1 pairwise logistic | 0.77 (0.57–0.90) | 0.81 (0.57–0.95) | 32% (17–46%) |
+| M2 pairwise boosting | 0.85 (0.72–0.94) | 0.93 (0.81–0.99) | 25% (14–36%) |
+
+With B0 and the product policy (up to three rounds), 6% (1–17%) of impostor checks were let through, 44% (19–71%) of owner checks were let through, and 50% (25–75%) of owners ended at the fallback. M2's AUC gain over B0 is +0.05 (−0.02 to +0.14), not enough to replace the baseline yet. Every owner attempt crossed laptops. Impostors on the owner's own laptop are harder to catch (AUC 0.76) than impostors on another laptop (0.85), so part of the separation comes from the device. Ranges are 95% participant-bootstrap intervals; with 8 people they are wide, and in line with the 10–20% error rates published for short tasks (section 2.2).
 - [x] A — Replay, expiry, cross-session, grant-reuse and rate-limit tests (36 backend tests)
 - [ ] A — Accessibility pass and responsive review in a real browser
 - [ ] A+B — README with setup commands and demo steps
@@ -348,7 +357,7 @@ Checks: `cd backend && uv run pytest` and `npm run typecheck`.
 cd backend && uv run python scripts/train.py --db ../data/collected/nathaniels-laptop.db --db ../data/collected/nikhil-laptop.db
 ```
 
-It prints the evaluation summary and, if there is enough validation data to choose thresholds, activates the model under `artifacts/models/`. The running API picks it up on the next request. With too little data it activates nothing and says why.
+It evaluates B0, M1 and M2 on participant-held-out scores (about 30 s for 10 people), prints a comparison with 95% ranges, and, if there are at least 5 people with two sessions, activates the selected model under `artifacts/models/`. A learned model replaces B0 only when its paired AUC gain has a 95% interval above zero. Add `--dry-run` to evaluate without activating, `--json` for the whole summary. The running API picks it up on the next request. With too little data it activates nothing and says why.
 
 **Sandbox for development.** To exercise the product before real data exists, train on synthetic players and let the API load that model:
 
@@ -365,7 +374,8 @@ then start the API with `CADENCE_ALLOW_SYNTHETIC_MODEL=1`. The app shows a "Sand
 | `backend/cadence/challenges/replay.py` | Server-side replay: validates a submitted round and derives the task timeline |
 | `backend/cadence/api/` | Routes: `collect.py`, `challenges.py`, `auth.py` (accounts, consent, fallback), `actions.py` (authorize, export) |
 | `backend/cadence/features/extract.py` | 42 movement features per round, shared by the API and training |
-| `backend/cadence/verifier/` | Baseline B0, metrics, thresholds, training, artifacts |
+| `backend/cadence/verifier/` | B0 (`baseline.py`), M1/M2 (`pairwise.py`), held-out evaluation and bootstrap (`evaluation.py`), weighted metrics, training and model selection, artifacts |
+| `data/collected/` | Shared snapshots of each collection laptop's database (tracked on purpose) |
 | `backend/cadence/policy.py` | The four outcomes and how a score becomes one |
 | `backend/cadence/product.py` | Enrollment profile, trust window, action grants |
 | `backend/scripts/train.py` | Train, evaluate and activate a model |
@@ -383,6 +393,9 @@ Lane B starts from `samples` rows: `events_z` is zlib-compressed JSON of `[t_ms,
 |---|---|---|
 | Sat 2:30 PM | Fallback is simulated and labelled demo-only | Saves 2–3 hours for the model and evaluation |
 | Sat 2:30 PM | SapiMouse used, reported separately from volunteer data | 120 people gives a real unseen-user estimate before volunteers arrive |
+| Sat 6:00 PM | Collected data shared as `data/collected/<station>.db`; the live `backend/cadence.db` is never tracked | A tracked live database is overwritten by every pull on a collection laptop |
+| Sat 6:20 PM | Evaluate with participant-held-out cross-validation, not the fixed 60/20/20 split | With 10 people the fixed split left 6 genuine validation attempts, too few to set thresholds; cross-validation uses every person for testing without leakage |
+| Sat 6:20 PM | A learned model replaces B0 only if its paired AUC gain has a 95% interval above zero | Picking the best point estimate on 8 people would mostly pick noise |
 | Sat 2:30 PM | Vite SPA, not Next.js | Brief dictates React + TypeScript with a FastAPI backend; no server rendering needed |
 | Sat 2:30 PM | Trajectories resampled to 60 Hz; no raw timing or step-size features | Stops the model learning the device instead of the person |
 | Sat 3:00 PM | Challenge expiry is 120 s, not the planned 90 s | Slow trackpad users must not lose a round; a round is about 20 s |

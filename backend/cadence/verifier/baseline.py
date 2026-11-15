@@ -31,7 +31,13 @@ class Baseline:
 
     def score(self, enrollment: np.ndarray, probe: np.ndarray) -> float:
         """Similarity of one probe round to the template built from `enrollment` rounds."""
+        return float(self.score_many(enrollment, np.atleast_2d(probe))[0])
+
+    def score_many(self, enrollment: np.ndarray, probes: np.ndarray) -> np.ndarray:
         template = np.nanmedian(self._z(enrollment), axis=0)
-        distance = np.abs(self._z(probe) - template)
+        distance = np.abs(self._z(probes) - template)
         usable = np.isfinite(distance) & np.isfinite(self.scale)
-        return float(-distance[usable].mean()) if usable.any() else float("nan")
+        total = np.where(usable, distance, 0.0).sum(axis=1)
+        count = usable.sum(axis=1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(count > 0, -total / count, np.nan)

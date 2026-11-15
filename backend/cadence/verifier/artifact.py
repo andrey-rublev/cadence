@@ -9,7 +9,7 @@ import joblib
 
 from ..core.config import settings
 from ..features.extract import FEATURE_NAMES, FEATURE_SCHEMA
-from .baseline import Baseline
+from .data import Verifier
 
 ACTIVE_POINTER = "ACTIVE"
 
@@ -17,7 +17,7 @@ ACTIVE_POINTER = "ACTIVE"
 @dataclass
 class Model:
     version: str
-    verifier: Baseline
+    verifier: Verifier
     reject_at: float
     accept_at: float
     # "volunteer" or "synthetic". A synthetic model says nothing about real people.
