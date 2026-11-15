@@ -1,5 +1,7 @@
 # Cadence — build plan (MadHacks 2026, security track)
 
+> **Three-minute judging materials:** [PITCH.md](PITCH.md) contains the current capability review, matching video and slide-plus-demo plans, speaker handoffs, measured claims and demo preparation. Prepared after pulling `dea3f11`; backend review checks: 96 tests passed. It supersedes the older four-minute demo outline in STATUS.md.
+
 > **Teammates: start at [section 12](#12-status-tracker-live)** for what is done, what is next and who owns it. Sections 1–11 are the plan and the reasoning behind it. Update the tracker in the same commit as the work.
 >
 > Plan approved Sat Nov 14, 2:30 PM CST. Judging is Sun Nov 15, 1:00 PM. Code freeze target: Sun 11:00 AM.
