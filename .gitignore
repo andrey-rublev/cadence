@@ -37,6 +37,7 @@ artifacts/models/*
 !artifacts/models/keys-login/
 !artifacts/models/keys-history/
 !artifacts/models/pointer/
+!artifacts/models/rhythm/
 
 # Tooling
 .playwright-mcp/
