@@ -20,6 +20,7 @@ const TEST_NAME: Record<Modality, string> = {
 interface TestResult {
   decision: PassiveDecision
   resolved: boolean
+  tests_left: number
 }
 
 /**
@@ -33,14 +34,21 @@ export function VerifyPage({ checkId }: { checkId: string }) {
   const [error, setError] = useState<string | null>(null)
   const [usingCode, setUsingCode] = useState(false)
   const [result, setResult] = useState<TestResult | null>(null)
+  const [needsStatus, setNeedsStatus] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
       const query = returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ''
       const loaded = await api.request<StepUpInfo>('GET', `/stepup/${checkId}${query}`)
       setInfo(loaded)
+      setNeedsStatus(false)
     } catch (e) {
       setError(explain(e, { check_unknown: 'This verification link is not valid. Start again from the site you were signing in to.' }))
+    } finally {
+      setLoading(false)
     }
   }, [checkId, returnTo])
 
@@ -51,13 +59,14 @@ export function VerifyPage({ checkId }: { checkId: string }) {
   // Once it is settled, go straight back to the site that asked.
   const backTo = info?.resolved ? info.return_to : null
   useEffect(() => {
-    if (!backTo) return
-    const t = window.setTimeout(() => window.location.assign(backTo), 900)
-    return () => window.clearTimeout(t)
+    if (backTo) window.location.replace(backTo)
   }, [backTo])
 
+  function confirm(resolvedBy: 'test' | 'fallback') {
+    setInfo((current) => current && { ...current, resolved: true, resolved_by: resolvedBy })
+  }
+
   const test = info && info.tests_left > 0 ? info.recommendation.recommended : null
-  const failed = result !== null && !result.resolved
   const testing = test !== null && !usingCode && !result
 
   return (
@@ -68,11 +77,16 @@ export function VerifyPage({ checkId }: { checkId: string }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        {!info && !error && (
+        {!info && loading && (
           <div aria-busy className="grid gap-3">
             <span className="h-8 w-56 animate-pulse rounded bg-muted motion-reduce:animate-none" />
             <span className="h-4 w-80 max-w-full animate-pulse rounded bg-muted motion-reduce:animate-none" />
           </div>
+        )}
+        {!info && error && (
+          <Button variant="outline" onClick={() => void load()} className="justify-self-start">
+            Try again
+          </Button>
         )}
 
         {info && (
@@ -90,6 +104,13 @@ export function VerifyPage({ checkId }: { checkId: string }) {
               <Panel>
                 <p>This check has expired. Go back to {info.site} and try again.</p>
               </Panel>
+            ) : needsStatus ? (
+              <Panel>
+                <p role="status">Cadence couldn’t get the result of your test.</p>
+                <Button onClick={() => void load()} disabled={loading} className="justify-self-start">
+                  {loading ? 'Checking…' : 'Check verification status'}
+                </Button>
+              </Panel>
             ) : (
               <Panel>
                 {testing && (
@@ -100,36 +121,43 @@ export function VerifyPage({ checkId }: { checkId: string }) {
                       modality={test}
                       checkId={checkId}
                       onUseCode={() => setUsingCode(true)}
+                      onRequestError={() => setNeedsStatus(true)}
                       onResult={(out) => {
+                        if (out.resolved) {
+                          confirm('test')
+                          return
+                        }
+                        setInfo({ ...info, tests_left: out.tests_left })
                         setResult(out)
-                        if (out.resolved) void load()
                       }}
                     />
                   </>
                 )}
 
-                {result?.resolved && <p role="status">Verified.</p>}
-
-                {!testing && !result?.resolved && (
-                  <>
-                    {failed && (
-                      <Alert variant="destructive" role="alert">
-                        <AlertDescription>
-                          {result.decision.outcome === 'INSUFFICIENT_EVIDENCE'
-                            ? 'Cadence couldn’t capture enough usable activity. Verify with a code to continue.'
-                            : 'Cadence couldn’t confirm a match. Verify with a code to continue.'}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    <CodeForm
-                      id="stepup"
-                      issue={async () => (await api.request<{ demo_code: string }>('POST', `/stepup/${checkId}/start`)).demo_code}
-                      verify={async (code) => {
-                        await api.request('POST', `/stepup/${checkId}/verify`, { code })
-                        await load()
-                      }}
-                    />
-                  </>
+                {result && (
+                  <Alert role="status">
+                    <AlertDescription>
+                      {result.decision.outcome === 'INSUFFICIENT_EVIDENCE'
+                        ? 'Cadence didn’t capture enough activity to check that test.'
+                        : 'Cadence couldn’t confirm a match on that test.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {result && test !== null && !usingCode && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button onClick={() => setResult(null)}>Try the quick test again</Button>
+                    <Button variant="outline" onClick={() => setUsingCode(true)}>Verify with a code</Button>
+                  </div>
+                )}
+                {(usingCode || test === null) && (
+                  <CodeForm
+                    id="stepup"
+                    issue={async () => (await api.request<{ demo_code: string }>('POST', `/stepup/${checkId}/start`)).demo_code}
+                    verify={async (code) => {
+                      await api.request('POST', `/stepup/${checkId}/verify`, { code })
+                      confirm('fallback')
+                    }}
+                  />
                 )}
               </Panel>
             )}
@@ -140,17 +168,17 @@ export function VerifyPage({ checkId }: { checkId: string }) {
   )
 }
 
-function QuickTest({ modality, checkId, onResult, onUseCode }: {
+function QuickTest({ modality, checkId, onResult, onUseCode, onRequestError }: {
   modality: Modality
   checkId: string
   onResult: (result: TestResult) => void
   onUseCode: () => void
+  onRequestError: () => void
 }) {
   const area = useRef<HTMLDivElement>(null)
   const recorder = useRef<ActivityRecorder | null>(null)
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const sentence = useRef(Math.floor(Math.random() * SENTENCES.length))
 
   useEffect(() => {
@@ -162,18 +190,16 @@ function QuickTest({ modality, checkId, onResult, onUseCode }: {
   async function submit() {
     if (!recorder.current) return
     setBusy(true)
-    setError(null)
     try {
       onResult(await api.request<TestResult>('POST', `/stepup/${checkId}/test`, recorder.current.snapshot()))
-    } catch (e) {
-      setError(explain(e, { no_tests_left: 'No tests left for this check. Use a code instead.' }))
-      setBusy(false)
+    } catch {
+      onRequestError()
     }
   }
 
   // The test submits itself the moment it is complete.
   useEffect(() => {
-    if (!ready || busy || error) return
+    if (!ready) return
     // A beat, so the last key's release is recorded before the snapshot.
     const t = window.setTimeout(() => void submit(), 200)
     return () => window.clearTimeout(t)
@@ -193,13 +219,8 @@ function QuickTest({ modality, checkId, onResult, onUseCode }: {
             Checking…
           </p>
         )}
-        {error && (
-          <Alert variant="destructive" role="alert">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
       </div>
-      <Button type="button" variant="link" onClick={onUseCode} disabled={ready && !error} className="h-auto justify-self-start p-0">
+      <Button type="button" variant="link" onClick={onUseCode} disabled={ready} className="h-auto justify-self-start p-0">
         Verify with a code
       </Button>
     </>

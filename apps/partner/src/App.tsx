@@ -134,8 +134,8 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-1">
-            <span className="hidden max-w-56 truncate px-2 text-sm text-chrome-foreground/75 md:inline">{me.email}</span>
+          <div className="ml-auto flex min-w-0 items-center gap-1">
+            <span className="hidden min-w-0 max-w-56 truncate px-2 text-sm text-chrome-foreground/75 md:inline">{me.email}</span>
             <Button
               variant="ghost"
               size="sm"

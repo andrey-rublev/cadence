@@ -118,7 +118,7 @@ export function PracticeSignIns({ pageRecorder }: { pageRecorder: RefObject<Acti
         ))}
       </div>
 
-      <form ref={attach} onSubmit={submit} className="grid max-w-sm gap-4">
+      <form ref={attach} onSubmit={submit} className="grid max-w-sm grid-cols-1 gap-4">
         <SignInFields
           id="practice"
           step={step}
@@ -127,6 +127,7 @@ export function PracticeSignIns({ pageRecorder }: { pageRecorder: RefObject<Acti
           onEmail={setEmail}
           onPassword={setPassword}
           onChangeEmail={() => (setStep('email'), setPassword(''), recorder.current?.reset())}
+          busy={busy}
         />
         <Button type="submit" size="lg" disabled={busy} className="justify-self-start">
           {busy && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}

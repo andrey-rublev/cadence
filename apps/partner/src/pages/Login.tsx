@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { api, evidenceToken, explain, recordActivity, type Gate, type Me } from '@/lib/api'
+import { api, ApiError, evidenceToken, explain, recordActivity, type Gate, type Me } from '@/lib/api'
 
 const syntheticPassword =
   import.meta.env.DEV &&
@@ -24,6 +24,7 @@ const syntheticPassword =
 export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => void; notice?: string | null; status?: string }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [step, setStep] = useState<SignInStep>('email')
+  const [focusEmail, setFocusEmail] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -37,18 +38,37 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
     return () => recorder.current?.stop()
   }, [])
 
-  async function submit(event: FormEvent) {
+  function changeEmail() {
+    setFocusEmail(true)
+    setStep('email')
+    setPassword('')
+    setError(null)
+    recorder.current?.reset()
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (busy) return
+    const fields = new FormData(event.currentTarget)
+    // Browser autofill can update the controls without notifying React first.
+    const enteredEmail = String(fields.get('username') ?? email)
+    const enteredPassword = String(fields.get('password') ?? '')
     if (mode === 'login' && step === 'email') {
+      setEmail(enteredEmail)
       setStep('password')
       setError(null)
       return
     }
+    setPassword(enteredPassword)
     setBusy(true)
     setError(null)
     try {
       const evidence = mode === 'login' ? await evidenceToken(recorder.current) : null
-      const out = await api<Gate<{ me: Me }>>('POST', mode === 'login' ? '/login' : '/register', { email, password, evidence })
+      const out = await api<Gate<{ me: Me }>>('POST', mode === 'login' ? '/login' : '/register', {
+        email: enteredEmail,
+        password: enteredPassword,
+        evidence,
+      })
       if (out.status === 'verify') {
         setRedirecting(true)
         window.location.assign(out.verify_url)
@@ -56,9 +76,16 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
       }
       onSignedIn(out.me)
     } catch (e) {
-      setPassword('')
+      recorder.current?.reset()
       setError(explain(e))
       setBusy(false)
+      if (e instanceof ApiError && e.code === 'invalid_credentials') {
+        const field = form.current?.elements.namedItem('password')
+        if (field instanceof HTMLInputElement) {
+          field.focus()
+          field.select()
+        }
+      }
     }
   }
 
@@ -77,7 +104,7 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
               {status}
             </p>
           )}
-          <form ref={form} onSubmit={submit} className="grid gap-5 rounded-xl border border-border bg-card p-6 sm:p-7">
+          <form ref={form} onSubmit={submit} className="grid grid-cols-1 gap-5 rounded-xl border border-border bg-card p-6 sm:p-7">
             <div className="grid gap-1">
               <h1 className="text-xl">{mode === 'login' ? 'Sign in' : 'Create your account'}</h1>
               {syntheticPassword && mode === 'login' && (
@@ -94,7 +121,9 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
                 password={password}
                 onEmail={setEmail}
                 onPassword={setPassword}
-                onChangeEmail={() => (setStep('email'), setPassword(''), recorder.current?.reset())}
+                onChangeEmail={changeEmail}
+                focusEmail={focusEmail}
+                busy={busy}
                 syntheticPassword={syntheticPassword}
               />
             ) : (
@@ -103,10 +132,12 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
+                    name="username"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
+                    readOnly={busy}
                     required
                   />
                 </div>
@@ -114,10 +145,12 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
+                    name="password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="new-password"
+                    readOnly={busy}
                     required
                     minLength={8}
                     aria-describedby="password-hint"
@@ -150,8 +183,12 @@ export function Login({ onSignedIn, notice, status }: { onSignedIn: (me: Me) => 
             {mode === 'login' ? 'New to Northwind? ' : 'Already have an account? '}
             <button
               type="button"
-              onClick={() => (setMode(mode === 'login' ? 'register' : 'login'), setStep('email'), setError(null))}
-              className="cursor-pointer rounded font-medium text-foreground underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              onClick={() => {
+                setMode(mode === 'login' ? 'register' : 'login')
+                changeEmail()
+              }}
+              disabled={busy}
+              className="cursor-pointer rounded font-medium text-foreground underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:opacity-50"
             >
               {mode === 'login' ? 'Create an account' : 'Sign in'}
             </button>
