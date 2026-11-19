@@ -263,6 +263,7 @@ Volunteer collection is the bottleneck, so collection mode ships before anything
 - [x] Offer the remaining quick test after a miss, let users recover a lost test response by checking its status, and return immediately after confirmation.
 - [x] Keep an existing Northwind session recoverable when a session check or sign-out request fails.
 - [x] Keep the partner’s return URL available for a retry when the network drops while finishing a Cadence connection, sign-in, export, or account deletion. Finish still requires the server’s existing checks.
+- [x] Let setup continue from saved progress after an interrupted upload. Show the remaining work after a rejected sample and explain the mouse or trackpad requirement on touchscreen-only devices.
 
 Owner: **A** = app lane (frontend, SDK, backend API), **B** = model and data lane. State: `[ ]` todo, `[~]` in progress, `[x]` done, `[-]` cut.
 

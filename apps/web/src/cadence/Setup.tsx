@@ -29,17 +29,11 @@ function currentStep(me: Me): StepId | 'done' {
   return 'done'
 }
 
-/** How far a step has got, from 0 to 1, counting input towards the sample in progress. */
-function fraction(step: SetupStep, pending: number, perSample: number): number {
-  if (done(step)) return 1
-  return (step.done * perSample + Math.min(pending, perSample)) / (step.needed * perSample)
-}
-
-/** Progress that never moves back: the pending count empties for a moment while a sample is saved. */
-function useHighWater(value: number): number {
-  const [high, setHigh] = useState(value)
-  if (value > high) setHigh(value)
-  return Math.max(high, value)
+/** A finished window stays in the progress count only while it is uploading or once it is saved. */
+function stepProgress(step: SetupStep, partial: number, saving: number, perSample: number) {
+  const total = step.needed * perSample
+  const left = Math.max(0, total - (step.done + saving) * perSample - partial)
+  return { filled: total ? 1 - left / total : 1, left }
 }
 
 const NOT_COUNTED: Record<string, string> = {
@@ -49,7 +43,9 @@ const NOT_COUNTED: Record<string, string> = {
 
 /** Says so when the last sample of this kind was turned away, so a stalled bar is explained. */
 function notCounted(last: LastSample | null, modality: LastSample['modality']): string | null {
-  if (last?.purpose !== 'rejected' || last.modality !== modality) return null
+  if (last?.modality !== modality) return null
+  if (last.purpose === 'unconfirmed') return 'The connection was interrupted. You can continue from your saved progress.'
+  if (last.purpose !== 'rejected') return null
   return NOT_COUNTED[last.code ?? ''] ?? 'The last sample could not be saved. Keep going.'
 }
 
@@ -232,29 +228,35 @@ function ConsentStep({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 }
 
 function ClickStep({ me }: { me: Me }) {
-  const { progress, last } = usePassive()
-  const step = me.setup.steps.clicks
-  const filled = useHighWater(fraction(step, progress.strokes, STROKES_PER_WINDOW))
-  const left = Math.ceil((1 - filled) * step.needed * STROKES_PER_WINDOW)
+  const { progress, saving, last } = usePassive()
+  const { filled, left } = stepProgress(me.setup.steps.clicks, progress.strokes, saving.pointer, STROKES_PER_WINDOW)
   const note = notCounted(last, 'pointer')
 
   return (
     <>
       <Heading title="Excavate the marked spots">
-        Click each piece of ore as it appears. Move the way you normally would. It takes about 40 seconds.
+        Use a mouse or trackpad to click each piece of ore. Move the way you normally would.
       </Heading>
-      <TargetTest progress={filled} status={left > 0 ? `${left} to dig` : 'Saving…'} />
+      <div className="hidden rounded-xl border border-border bg-card p-5 any-pointer-none:block any-pointer-coarse:not-any-pointer-fine:block">
+        <p className="font-medium">Touchscreen taps can’t complete this step</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Connect a mouse or sign in on a computer to pick up from your saved progress.
+        </p>
+      </div>
+      <div className="any-pointer-none:hidden any-pointer-coarse:not-any-pointer-fine:hidden">
+        <TargetTest progress={filled} status={left > 0 ? `${left} to dig` : 'Saving…'} />
+      </div>
       {note && <Note>{note}</Note>}
     </>
   )
 }
 
 function TypingStep({ me, onTyping }: { me: Me; onTyping: (typed: number) => void }) {
-  const { progress, last } = usePassive()
+  const { progress, saving, last } = usePassive()
   const step = me.setup.steps.typing
   const complete = done(step)
-  const filled = useHighWater(fraction(step, progress.keys, KEYS_PER_WINDOW))
-  const sentences = Math.ceil(((1 - filled) * step.needed * KEYS_PER_WINDOW) / SENTENCE_KEYS)
+  const { filled, left } = stepProgress(step, progress.keys, saving.keys, KEYS_PER_WINDOW)
+  const sentences = Math.ceil(left / SENTENCE_KEYS)
   // Where this visit began, so a sample saved mid-sentence does not swap the sentence.
   const [start] = useState(step.done)
   const note = notCounted(last, 'keys')

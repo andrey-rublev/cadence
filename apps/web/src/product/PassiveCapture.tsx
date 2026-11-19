@@ -24,14 +24,15 @@ interface PassiveState {
   setPaused: (paused: boolean) => void
   /** Input collected towards the next window of each kind. */
   progress: PassiveProgress
+  /** Complete windows awaiting confirmation from the server. */
+  saving: Record<Modality, number>
   /** What the server did with the last window sent. */
   last: LastSample | null
 }
 
 export interface LastSample {
   modality: Modality
-  /** enroll: added to the profile; evidence: kept for checks in this sign-in; rejected: not counted. */
-  purpose: 'enroll' | 'evidence' | 'rejected'
+  purpose: 'enroll' | 'evidence' | 'rejected' | 'unconfirmed'
   /** Why a rejected sample was not counted (server error code). */
   code?: string
 }
@@ -41,6 +42,7 @@ const PassiveContext = createContext<PassiveState>({
   paused: false,
   setPaused: () => undefined,
   progress: { strokes: 0, keys: 0 },
+  saving: { pointer: 0, keys: 0 },
   last: null,
 })
 
@@ -62,35 +64,54 @@ interface ProviderProps {
 export function PassiveProvider({ me, setMe, root, children }: ProviderProps) {
   const [paused, setPaused] = useState(false)
   const [progress, setProgress] = useState<PassiveProgress>({ strokes: 0, keys: 0 })
+  const [saving, setSaving] = useState<Record<Modality, number>>({ pointer: 0, keys: 0 })
   const [last, setLast] = useState<PassiveState['last']>(null)
   const running = Boolean(me?.consent) && !paused
+  const username = me?.username
 
   useEffect(() => {
-    if (!running || !root.current) return
-    const send = (window: PassiveWindow) =>
-      api
-        .request<{
+    if (!running || !username || !root.current) return
+    let active = true
+
+    function applyProgress({ passive, setup, learning }: Pick<Me, 'passive' | 'setup' | 'learning'>) {
+      setMe((current) =>
+        current && current.username === username ? { ...current, passive, setup, learning } : current,
+      )
+    }
+
+    async function send(window: PassiveWindow) {
+      const { modality } = window
+      setSaving((previous) => ({ ...previous, [modality]: previous[modality] + 1 }))
+
+      try {
+        const saved = await api.request<{
           purpose: 'enroll' | 'evidence'
           modality: Modality
           passive: Record<Modality, PassiveStatus>
           setup: SetupStatus
           learning: boolean
         }>('POST', '/passive', window)
-        .then(
-          (saved) => {
-            setLast({ modality: saved.modality, purpose: saved.purpose })
-            setMe((current) =>
-              current ? { ...current, passive: saved.passive, setup: saved.setup, learning: saved.learning } : current,
-            )
-          },
-          // A thin or duplicate window is not counted; capture carries on, and the UI says so.
-          (error: unknown) =>
-            setLast({
-              modality: window.modality,
-              purpose: 'rejected',
-              code: error instanceof CadenceApiError ? error.code : undefined,
-            }),
-        )
+        if (!active) return
+        applyProgress(saved)
+        setLast({ modality: saved.modality, purpose: saved.purpose })
+      } catch (error) {
+        if (!active) return
+        if (!(error instanceof CadenceApiError) || error.status >= 500) {
+          // A lost response may follow a committed sample. Read back progress instead of
+          // resending the recording or asking the person to repeat a sample already saved.
+          const current = await api.request<Me | null>('GET', '/me').catch(() => null)
+          if (!active) return
+          if (current && current.username === username) applyProgress(current)
+          setLast({ modality, purpose: 'unconfirmed' })
+        } else {
+          setLast({ modality, purpose: 'rejected', code: error.code })
+        }
+      } finally {
+        if (active) {
+          setSaving((previous) => ({ ...previous, [modality]: previous[modality] - 1 }))
+        }
+      }
+    }
     const capture = startPassive({
       root: root.current,
       onWindow: send,
@@ -99,12 +120,15 @@ export function PassiveProvider({ me, setMe, root, children }: ProviderProps) {
       keys: KEYS_PER_WINDOW,
     })
     return () => {
+      active = false
       capture.stop()
       setProgress({ strokes: 0, keys: 0 })
+      setSaving({ pointer: 0, keys: 0 })
+      setLast(null)
     }
-  }, [running, root, setMe])
+  }, [running, root, setMe, username])
 
-  return <PassiveContext value={{ running, paused, setPaused, progress, last }}>{children}</PassiveContext>
+  return <PassiveContext value={{ running, paused, setPaused, progress, saving, last }}>{children}</PassiveContext>
 }
 
 export function Meter({ label, value, total }: { label: string; value: number; total: number }) {
