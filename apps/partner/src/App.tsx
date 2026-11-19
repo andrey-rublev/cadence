@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Logo } from '@/components/Brand'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { api, explain, recordActivity, type Me } from '@/lib/api'
+import { api, ApiError, explain, recordActivity, type Me } from '@/lib/api'
 import { downloadExport, type ExportFile } from '@/lib/exports'
 import { Account } from '@/pages/Account'
 import { Customers } from '@/pages/Customers'
@@ -48,6 +48,9 @@ export default function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined)
   const [view, setView] = useState<View>('customers')
   const [notice, setNotice] = useState<string | null>(null)
+  const [sessionError, setSessionError] = useState<string | null>(null)
+  const [sessionAttempt, setSessionAttempt] = useState(0)
+  const [signingOut, setSigningOut] = useState(false)
   const [accountDeleted, setAccountDeleted] = useState(false)
   // Exports: whether to open straight into a new one, and one just released on the way back from Cadence.
   const [newExport, setNewExport] = useState(false)
@@ -62,18 +65,23 @@ export default function App() {
     void (async () => {
       const back = await returning.current
       if (!active) return
-      const current = back?.deleted ? null : back?.me ?? (await api<Me | null>('GET', '/me').catch(() => null))
-      if (!active) return
-      if (back?.view) setView(back.view)
-      if (back?.error) setNotice(back.error)
-      if (back?.released) setReleased(back.released)
-      if (back?.deleted) setAccountDeleted(true)
-      setMe(current)
+      try {
+        const current = back?.deleted ? null : back?.me ?? (await api<Me | null>('GET', '/me'))
+        if (!active) return
+        if (back?.view) setView(back.view)
+        if (back?.error) setNotice(back.error)
+        if (back?.released) setReleased(back.released)
+        if (back?.deleted) setAccountDeleted(true)
+        setMe(current)
+      } catch {
+        // A failed session lookup says nothing about whether the session is still valid.
+        if (active) setSessionError('Northwind couldn’t check your session. Try again to continue.')
+      }
     })()
     return () => {
       active = false
     }
-  }, [])
+  }, [sessionAttempt])
 
   // While signed in, the page keeps the last few minutes of typing and clicking, ready to hand
   // to Cadence when a sensitive action needs it. Nothing is sent until then.
@@ -84,8 +92,21 @@ export default function App() {
   }, [me?.cadence.connected])
 
   async function signOut() {
-    await api('POST', '/logout').catch(() => undefined)
-    setMe(null)
+    if (signingOut) return
+    setSigningOut(true)
+    setNotice(null)
+    try {
+      await api('POST', '/logout')
+      setMe(null)
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'not_signed_in') {
+        setMe(null)
+      } else {
+        setNotice('Northwind couldn’t confirm that you signed out. Try again.')
+      }
+    } finally {
+      setSigningOut(false)
+    }
   }
 
   function onAccountDeleted() {
@@ -97,7 +118,30 @@ export default function App() {
     setAccountDeleted(true)
   }
 
-  if (me === undefined) return <div aria-busy className="min-h-dvh" />
+  if (me === undefined)
+    return (
+      <main className="grid min-h-dvh place-items-center px-5 py-12">
+        <div className="grid w-full max-w-sm gap-5">
+          <Logo />
+          {sessionError ? (
+            <div className="grid gap-4 rounded-xl border border-border bg-card p-6">
+              <p role="alert">{sessionError}</p>
+              <Button
+                onClick={() => {
+                  setSessionError(null)
+                  setSessionAttempt((attempt) => attempt + 1)
+                }}
+                className="justify-self-start"
+              >
+                Try again
+              </Button>
+            </div>
+          ) : (
+            <p role="status" className="text-sm text-muted-foreground">Checking your session…</p>
+          )}
+        </div>
+      </main>
+    )
   if (me === null)
     return (
       <Login
@@ -140,9 +184,10 @@ export default function App() {
               variant="ghost"
               size="sm"
               onClick={signOut}
+              disabled={signingOut}
               className="text-chrome-foreground hover:bg-white/10 hover:text-chrome-foreground"
             >
-              Sign out
+              {signingOut ? 'Signing out…' : 'Sign out'}
             </Button>
           </div>
         </div>
