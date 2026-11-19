@@ -262,7 +262,7 @@ Volunteer collection is the bottleneck, so collection mode ships before anything
 - [x] Keep account controls usable with long email addresses at phone and tablet widths.
 - [x] Offer the remaining quick test after a miss, let users recover a lost test response by checking its status, and return immediately after confirmation.
 - [x] Keep an existing Northwind session recoverable when a session check or sign-out request fails.
-- [ ] Keep the partner’s return screen recoverable when the network drops during sign-in, export, or account deletion.
+- [x] Keep the partner’s return URL available for a retry when the network drops while finishing a Cadence connection, sign-in, export, or account deletion. Finish still requires the server’s existing checks.
 
 Owner: **A** = app lane (frontend, SDK, backend API), **B** = model and data lane. State: `[ ]` todo, `[~]` in progress, `[x]` done, `[-]` cut.
 

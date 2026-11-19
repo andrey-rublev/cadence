@@ -13,33 +13,46 @@ import { Login } from '@/pages/Login'
 import { Security } from '@/pages/Security'
 
 type View = 'customers' | 'exports' | 'security' | 'account'
+type CadenceReturn = { me?: Me; view?: View; error?: string; released?: ExportFile; deleted?: true }
+type ReturnResult = CadenceReturn | { retry: true } | null
 
 /** Where Cadence sends people back: linking (/cadence/callback) or after verifying (/cadence/return). */
-async function handleReturn(): Promise<{ me?: Me; view?: View; error?: string; released?: ExportFile; deleted?: true } | null> {
+async function handleReturn(): Promise<ReturnResult> {
   const path = window.location.pathname
   const params = new URLSearchParams(window.location.search)
   const clean = () => window.history.replaceState(null, '', '/')
   try {
     if (path === '/cadence/callback') {
-      clean()
-      if (params.get('error')) return { view: 'security', error: 'Cadence was not connected.' }
+      if (params.get('error')) {
+        clean()
+        return { view: 'security', error: 'Cadence was not connected.' }
+      }
       const me = await api<Me>('POST', '/cadence/callback', { code: params.get('code'), state: params.get('state') })
+      if (!me) return { retry: true }
+      clean()
       return { me, view: 'security' }
     }
     if (path === '/cadence/return') {
-      clean()
       const out = await api<
         | { kind: 'sign_in'; me: Me }
         | { kind: 'export'; export: ExportFile }
         | { kind: 'delete' }
       >('POST', '/finish', { pending: params.get('pending') })
+      if (!out) return { retry: true }
+      clean()
       if (out.kind === 'sign_in') return { me: out.me }
       if (out.kind === 'delete') return { deleted: true }
       downloadExport(out.export)
       return { view: 'exports', released: out.export }
     }
   } catch (e) {
-    return { error: explain(e) }
+    // Keep the return URL until Northwind can give a definitive answer. A retry still
+    // goes through the server's existing session, pending request and verification checks.
+    if (e instanceof TypeError || (e instanceof ApiError && (e.status >= 500 || e.status === 429))) {
+      return { retry: true }
+    }
+    clean()
+    return { error: explain(e), view: path === '/cadence/callback' ? 'security' : undefined }
   }
   return null
 }
@@ -65,6 +78,11 @@ export default function App() {
     void (async () => {
       const back = await returning.current
       if (!active) return
+      if (back && 'retry' in back) {
+        returning.current = null
+        setSessionError('Northwind couldn’t finish your request. Retry to pick up where you left off.')
+        return
+      }
       try {
         const current = back?.deleted ? null : back?.me ?? (await api<Me | null>('GET', '/me'))
         if (!active) return
@@ -137,7 +155,9 @@ export default function App() {
               </Button>
             </div>
           ) : (
-            <p role="status" className="text-sm text-muted-foreground">Checking your session…</p>
+            <p role="status" className="text-sm text-muted-foreground">
+              {window.location.pathname.startsWith('/cadence/') ? 'Finishing your request…' : 'Checking your session…'}
+            </p>
           )}
         </div>
       </main>
